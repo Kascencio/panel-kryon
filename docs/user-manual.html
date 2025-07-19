@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual de Usuario - Simulador de Cabina AQ</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+        }
+        
+        .header p {
+            margin: 0.5rem 0 0 0;
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .toc {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .toc h2 {
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 0.5rem;
+        }
+        
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .toc li {
+            margin: 0.5rem 0;
+        }
+        
+        .toc a {
+            color: #333;
+            text-decoration: none;
+            padding: 0.25rem 0;
+            display: block;
+            border-left: 3px solid transparent;
+            padding-left: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .toc a:hover {
+            color: #667eea;
+            border-left-color: #667eea;
+            background-color: #f8f9ff;
+        }
+        
+        .section {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .section h2 {
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+        
+        .section h3 {
+            color: #764ba2;
+            margin-top: 2rem;
+        }
+        
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 1rem;
+            margin: 1rem 0;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+        }
+        
+        .file-structure {
+            background: #f1f3f4;
+            border-left: 4px solid #667eea;
+            padding: 1rem;
+            margin: 1rem 0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .warning::before {
+            content: "⚠️ ";
+            font-weight: bold;
+        }
+        
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 5px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .success::before {
+            content: "✅ ";
+            font-weight: bold;
+        }
+        
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 5px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .error::before {
+            content: "❌ ";
+            font-weight: bold;
+        }
+        
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            border-radius: 5px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .info::before {
+            content: "ℹ️ ";
+            font-weight: bold;
+        }
+        
+        .interface-diagram {
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            padding: 1rem;
+            margin: 1rem 0;
+            font-family: 'Courier New', monospace;
+            white-space: pre-line;
+        }
+        
+        .step-by-step {
+            counter-reset: step-counter;
+        }
+        
+        .step {
+            counter-increment: step-counter;
+            background: #f8f9ff;
+            border-left: 4px solid #667eea;
+            padding: 1rem;
+            margin: 1rem 0;
+            position: relative;
+        }
+        
+        .step::before {
+            content: "Paso " counter(step-counter);
+            background: #667eea;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            position: absolute;
+            top: -0.5rem;
+            left: 1rem;
+        }
+        
+        .step h4 {
+            margin-top: 1rem;
+            color: #667eea;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        
+        th, td {
+            border: 1px solid #dee2e6;
+            padding: 0.75rem;
+            text-align: left;
+        }
+        
+        th {
+            background: #667eea;
+            color: white;
+            font-weight: bold;
+        }
+        
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        
+        .therapy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .therapy-card {
+            background: #f8f9ff;
+            border: 1px solid #e6e9ff;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        
+        .therapy-card h4 {
+            color: #667eea;
+            margin-top: 0;
+        }
+        
+        .therapy-card .badge {
+            background: #667eea;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            margin-right: 0.5rem;
+        }
+        
+        .therapy-card .badge.video {
+            background: #e74c3c;
+        }
+        
+        .troubleshooting {
+            background: #fff5f5;
+            border: 1px solid #fed7d7;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .troubleshooting h4 {
+            color: #e53e3e;
+            margin-top: 0;
+        }
+        
+        .solution {
+            background: #f0fff4;
+            border: 1px solid #c6f6d5;
+            border-radius: 5px;
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+        }
+        
+        .footer {
+            background: #667eea;
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            text-align: center;
+            margin-top: 3rem;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .section {
+                padding: 1rem;
+            }
+            
+            .therapy-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Manual de Usuario</h1>
+        <p>Simulador de Cabina AQ - Terapia Cuántica Bioenergética</p>
+    </div>
+
+    <div class="toc">
+        <h2>📋 Tabla de Contenidos</h2>
+        <ul>
+            <li><a href="#introduccion">1. Introducción</a></li>
+            <li><a href="#requisitos">2. Requisitos del Sistema</a></li>
+            <li><a href="#instalacion">3. Instalación y Configuración</a></li>
+            <li><a href="#interfaz">4. Interfaz de Usuario</a></li>
+            <li><a href="#archivos">5. Gestión de Archivos Multimedia</a></li>
+            <li><a href="#terapias">6. Tipos de Terapias</a></li>
+            <li><a href="#sesiones">7. Configuración de Sesiones</a></li>
+            <li><a href="#pantallas">8. Pantallas Externas</a></li>
+            <li><a href="#arduino">9. Conexión Arduino</a></li>
+            <li><a href="#problemas">10. Solución de Problemas</a></li>
+            <li><a href="#faq">11. Preguntas Frecuentes</a></li>
+            <li><a href="#soporte">12. Soporte Técnico</a></li>
+        </ul>
+    </div>
+
+    <div class="section" id="introduccion">
+        <h2>🌟 Introducción</h2>
+        
+        <p>El <strong>Simulador de Cabina AQ</strong> es una aplicación web avanzada diseñada para administrar terapias cuánticas bioenergéticas. La aplicación combina múltiples tecnologías para crear una experiencia terapéutica integral:</p>
+        
+        <div class="therapy-grid">
+            <div class="therapy-card">
+                <h4>💡 Cromoterapia</h4>
+                <p>Control de luces LED RGB mediante Arduino con 24 LEDs NeoPixel programables.</p>
+            </div>
+            <div class="therapy-card">
+                <h4>🎵 Audioterapia</h4>
+                <p>Reproducción de frecuencias específicas en múltiples formatos de alta calidad.</p>
+            </div>
+            <div class="therapy-card">
+                <h4>🎬 Videoterapia</h4>
+                <p>Contenido visual terapéutico disponible para la Terapia Cascada.</p>
+            </div>
+            <div class="therapy-card">
+                <h4>🎮 Simulación 3D</h4>
+                <p>Visualización inmersiva de la cabina terapéutica con Three.js.</p>
+            </div>
+        </div>
+
+        <div class="success">
+            <strong>Beneficios Principales:</strong>
+            <ul>
+                <li>Reducción del estrés y la tensión</li>
+                <li>Equilibrio energético</li>
+                <li>Mejora del bienestar general</li>
+                <li>Armonización física y emocional</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="section" id="requisitos">
+        <h2>💻 Requisitos del Sistema</h2>
+        
+        <h3>Navegadores Compatibles</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Navegador</th>
+                    <th>Versión Mínima</th>
+                    <th>Funciones Completas</th>
+                    <th>Recomendado</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Google Chrome</td>
+                    <td>90+</td>
+                    <td>✅ Sí</td>
+                    <td>⭐ Recomendado</td>
+                </tr>
+                <tr>
+                    <td>Mozilla Firefox</td>
+                    <td>88+</td>
+                    <td>⚠️ Limitado*</td>
+                    <td>✅ Compatible</td>
+                </tr>
+                <tr>
+                    <td>Safari</td>
+                    <td>14+</td>
+                    <td>⚠️ Limitado*</td>
+                    <td>✅ Compatible</td>
+                </tr>
+                <tr>
+                    <td>Microsoft Edge</td>
+                    <td>90+</td>
+                    <td>✅ Sí</td>
+                    <td>✅ Compatible</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="info">
+            <strong>*Limitaciones:</strong> Firefox y Safari no soportan Web Serial API, por lo que la conexión Arduino no estará disponible.
+        </div>
+
+        <h3>Hardware Recomendado</h3>
+        <div class="code-block">
+RAM: 8 GB (mínimo 4 GB)
+Procesador: Intel i5 / AMD Ryzen 5 o superior
+Tarjeta Gráfica: Soporte WebGL 2.0
+Conexión: Puerto USB para Arduino (opcional)
+Resolución: 1920x1080 o superior
+        </div>
+
+        <h3>Permisos Requeridos</h3>
+        <div class="step-by-step">
+            <div class="step">
+                <h4>Ventanas Emergentes (Pop-ups)</h4>
+                <p>Necesario para abrir pantallas externas. Configurar en: Configuración → Privacidad → Ventanas emergentes</p>
+            </div>
+            <div class="step">
+                <h4>Reproducción Automática</h4>
+                <p>Permite que el audio/video inicie automáticamente durante las sesiones.</p>
+            </div>
+            <div class="step">
+                <h4>Acceso al Micrófono</h4>
+                <p>Opcional. Para usar el micrófono durante las sesiones terapéuticas.</p>
+            </div>
+            <div class="step">
+                <h4>Puerto Serie (Solo Chrome/Edge)</h4>
+                <p>Requerido para conectar y controlar el Arduino con LEDs.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section" id="instalacion">
+        <h2>⚙️ Instalación y Configuración</h2>
+        
+        <h3>Instalación Local</h3>
+        <div class="step-by-step">
+            <div class="step">
+                <h4>Descargar el Proyecto</h4>
+                <div class="code-block">
+# Clonar desde GitHub
+git clone https://github.com/tu-usuario/cabina-aq.git
+
+# Navegar al directorio
+cd cabina-aq
+                </div>
+            </div>
+            
+            <div class="step">
+                <h4>Instalar Dependencias</h4>
+                <div class="code-block">
+# Instalar paquetes Node.js
+npm install
+
+# O usando Yarn
+yarn install
+                </div>
+            </div>
+            
+            <div class="step">
+                <h4>Iniciar la Aplicación</h4>
+                <div class="code-block">
+# Modo desarrollo
+npm run dev
+
+# Modo producción
+npm run build
+npm run start
+                </div>
+            </div>
+            
+            <div class="step">
+                <h4>Acceder a la Aplicación</h4>
+                <p>Abrir navegador en: <code>http://localhost:3000</code></p>
+            </div>
+        </div>
+
+        <h3>Estructura de Directorios</h3>
+        <div class="file-structure">
+cabina-aq/
+├── public/                 # Archivos públicos
+│   ├── audio/             # 🎵 Archivos de audio
+│   │   ├── flac/          # Alta calidad FLAC
+│   │   ├── backup/        # Archivos de respaldo
+│   │   └── alternative/   # Archivos alternativos
+│   ├── video/             # 🎬 Archivos de video
+│   │   ├── backup/        # Videos de respaldo
+│   │   └── alternative/   # Videos alternativos
+│   └── images/            # 🖼️ Imágenes y recursos
+├── components/            # Componentes React
+├── app/                   # Páginas Next.js
+├── docs/                  # 📚 Documentación
+└── README.md             # Información del proyecto
+        </div>
+    </div>
+
+    <div class="section" id="interfaz">
+        <h2>🖥️ Interfaz de Usuario</h2>
+        
+        <h3>Pantalla Principal</h3>
+        <div class="interface-diagram">
+┌─────────────────────────────────────────────────────────────┐
+│                    Simulador de Cabina AQ                  │
+│                 Terapia Cuántica Bioenergética             │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────────────────┐  ┌─────────────────────────────┐   │
+│  │                     │  │                             │   │
+│  │   Simulación 3D     │  │      Panel de Control       │   │
+│  │   (Minimizada)      │  │                             │   │
+│  │                     │  │  • Selección de Terapia     │   │
+│  │  [Ver 3D] [Config]  │  │  • Duración de Sesión       │   │
+│  │                     │  │  • Control de Intensidad    │   │
+│  │  Estado: En Espera  │  │  • Conexión Arduino         │   │
+│  │  Terapia: Ninguna   │  │                             │   │
+│  │                     │  │  [Iniciar Sesión]           │   │
+│  └─────────────────────┘  └─────────────────────────────┘   │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────────┤
+│  │              Pantallas Externas                         │
+│  │  [Monitor] [TV] [Móvil] [Laptop]                       │
+│  │  💡 Las ventanas se abren automáticamente               │
+│  └─────────────────────────────────────────────────────────┘
+│                                                             │
+│  ┌─────────────────────────────────────────────────────────┤
+│  │                 Terapias Básicas                        │
+│  │  [General] [Cascada] [Pausado] [Intermitente]          │
+│  └─────────────────────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────────┘
+        </div>
+
+        <h3>Componentes Principales</h3>
+        
+        <div class="therapy-grid">
+            <div class="therapy-card">
+                <h4>🎮 Simulación 3D</h4>
+                <ul>
+                    <li><strong>Vista Minimizada:</strong> Información básica y controles</li>
+                    <li><strong>Vista Expandida:</strong> Simulación completa con Three.js</li>
+                    <li><strong>Calidad:</strong> Baja, Media, Alta</li>
+                </ul>
+            </div>
+            
+            <div class="therapy-card">
+                <h4>⚙️ Panel de Control</h4>
+                <ul>
+                    <li><strong>Selector:</strong> Dropdown con todas las terapias</li>
+                    <li><strong>Duración:</strong> 4, 10, 15 minutos</li>
+                    <li><strong>Intensidad:</strong> Control deslizante 0-100%</li>
+                    <li><strong>Modo:</strong> Automático o manual</li>
+                </ul>
+            </div>
+            
+            <div class="therapy-card">
+                <h4>🎵 Reproductor</h4>
+                <ul>
+                    <li><strong>Audio:</strong> Controles de volumen y repetición</li>
+                    <li><strong>Video:</strong> Solo para Terapia Cascada</li>
+                    <li><strong>Micrófono:</strong> Activación opcional</li>
+                </ul>
+            </div>
+            
+            <div class="therapy-card">
+                <h4>📺 Pantallas Externas</h4>
+                <ul>
+                    <li><strong>Monitor:</strong> 1920x1080</li>
+                    <li><strong>TV:</strong> 1280x720</li>
+                    <li><strong>Móvil:</strong> 375x667</li>
+                    <li><strong>Laptop:</strong> 1366x768</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="section" id="archivos">
+        <h2>📁 Gestión de Archivos Multimedia</h2>
+        
+        <h3>Estructura de Archivos de Audio</h3>
+        
+        <div class="warning">
+            <strong>Importante:</strong> Los nombres de archivos deben seguir exactamente la convención especificada para funcionar correctamente.
+        </div>
+        
+        <h4>Convención de Nomenclatura</h4>
+        <div class="code-block">
+Formato: [terapia]-[duración]min.[extensión]
+
+Ejemplos correctos:
+✅ general-4min.mp3
+✅ cascada-15min.flac
+✅ intermitente-10min.ogg
+✅ rojo-4min.wav
+
+Ejemplos incorrectos:
+❌ general_4_min.mp3
+❌ General-4min.mp3
+❌ general-4-min.mp3
+        </div>
+
+        <h4>Ubicaciones de Archivos</h4>
+        <div class="file-structure">
+public/audio/
+├── [terapia]-[duración]min.[formato]    # Archivos principales
+├── general-4min.mp3
+├── general-15min.mp3
+├── cascada-4min.mp3
+├── intermitente-15min.mp3
+├── rojo-4min.mp3
+├── verde-15min.mp3
+├── azul-10min.mp3
+└── ...
+
+public/audio/flac/                       # Alta calidad (opcional)
+├── general-4min.flac
+├── cascada-15min.flac
+└── ...
+
+public/audio/backup/                     # Respaldos (opcional)
+├── general-4min.mp3
+└── ...
+
+public/audio/alternative/                # Alternativos (opcional)
+├── general-4min.mp3
+└── ...
+        </div>
+
+        <h4>Formatos Soportados (Orden de Prioridad)</h4>
+        <table>
+            <thead>
+                <tr>
+                    <th>Formato</th>
+                    <th>Extensión</th>
+                    <th>Calidad</th>
+                    <th>Tamaño</th>
+                    <th>Recomendado</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>FLAC</td>
+                    <td>.flac</td>
+                    <td>Sin pérdida</td>
+                    <td>Grande</td>
+                    <td>⭐ Mejor calidad</td>
+                </tr>
+                <tr>
+                    <td>WAV</td>
+                    <td>.wav</td>
+                    <td>Sin pérdida</td>
+                    <td>Muy grande</td>
+                    <td>✅ Alta calidad</td>
+                </tr>
+                <tr>
+                    <td>OGG</td>
+                    <td>.ogg</td>
+                    <td>Comprimido</td>
+                    <td>Mediano</td>
+                    <td>✅ Eficiente</td>
+                </tr>
+                <tr>
+                    <td>MP3</td>
+                    <td>.mp3</td>
+                    <td>Comprimido</td>
+                    <td>Pequeño</td>
+                    <td>✅ Estándar</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Archivos de Video</h3>
+        
+        <div class="info">
+            <strong>Nota Importante:</strong> Solo la <strong>Terapia Cascada</strong> incluye contenido de video. Todas las demás terapias son solo audio.
+        </div>
+
+        <div class="file-structure">
+public/video/
+├── cascada-4min.mp4      # Solo Terapia Cascada
+├── cascada-10min.mp4
+├── cascada-15min.mp4
+└── ...
+
+public/video/backup/      # Respaldos (opcional)
+├── cascada-4min.mp4
+└── ...
+        </div>
+
+        <h3>Cómo Agregar Nuevos Archivos</h3>
+        
+        <div class="step-by-step">
+            <div class="step">
+                <h4>Preparar Archivos de Audio</h4>
+                <div class="code-block">
+# Crear archivos con nomenclatura correcta
+nueva-terapia-4min.mp3   # 4 minutos
+nueva-terapia-10min.mp3  # 10 minutos  
+nueva-terapia-15min.mp3  # 15 minutos
+
+# Opcional: Versión alta calidad
+nueva-terapia-4min.flac
+nueva-terapia-10min.flac
+nueva-terapia-15min.flac
+                </div>
+            </div>
+            
+            <div class="step">
+                <h4>Colocar en Directorio Correcto</h4>
+                <div class="code-block">
+# Copiar a ubicación principal
+cp nueva-terapia-*.mp3 public/audio/
+
+# Opcional: Copiar versiones FLAC
+cp nueva-terapia-*.flac public/audio/flac/
+                </div>
+            </div>
+            
+            <div class="step">
+                <h4>Configurar en la Aplicación</h4>
+                <p>Editar el archivo correspondiente (components/more-therapies.tsx) para agregar la nueva terapia:</p>
+                <div class="code-block">
+{
+  id: "nueva-terapia",
+  name: "Nueva Terapia",
+  description: "Descripción de la nueva terapia",
+  frequency: "nueva-terapia",  // Debe coincidir con nombre archivo
+  color: "#10b981",
+  icon: &lt;Atom className="h-4 w-4" /&gt;,
+  intensity: "Media",
+  hasVideo: false,  // true solo si tiene video
+}
+                </div>
+            </div>
+        </div>
+
+        <h3>Especificaciones Técnicas</h3>
+        
+        <div class="therapy-grid">
+            <div class="therapy-card">
+                <h4>🎵 Audio</h4>
+                <ul>
+                    <li><strong>Tasa de bits:</strong> 320 kbps (MP3), 1411 kbps (FLAC)</li>
+                    <li><strong>Frecuencia:</strong> 44.1 kHz</li>
+                    <li><strong>Canales:</strong> Estéreo</li>
+                    <li><strong>Duración:</strong> Exacta (4, 10, 15 min)</li>
+                </ul>
+            </div>
+            
+            <div class="therapy-card">
+                <h4>🎬 Video</h4>
+                <ul>
+                    <li><strong>Resolución:</strong> 1920x1080 (Full HD)</li>
+                    <li><strong>Tasa de bits:</strong> 3000 kbps</li>
+                    <li><strong>Codec:</strong> H.264 (MP4)</li>
+                    <li><strong>Audio:</strong> AAC, 128 kbps</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="section" id="terapias">
+        <h2>🌈 Tipos de Terapias</h2>
+        
+        <h3>Terapias Básicas</h3>
+        
+        <div class="therapy-grid">
+            <div class="therapy-card">
+                <h4>🌟 Terapia General</h4>
+                <span class="badge">Audio</span>
+                <p><strong>Archivo:</strong> general-[duración]min.mp3</p>
+                <p><strong>Descripción:</strong> Sesión equilibrada con patrones de luz variados para bienestar general.</p>
+                <p><strong>Intensidad:</strong> Media</p>
+                <p><strong>Modo Arduino:</strong> patron</p>
+            </div>
+            
+            <div class="therapy-card">
+                <h4>🌊 Terapia Cascada</h4>
+                <span class="badge video">Video</span>
+                <span class="badge">Audio</span>
+                <p><strong>Archivo:</strong> cascada-[duración]min.mp4</p>
+                <p><strong>Descripción:</strong> Efecto cascada relajante con transiciones suaves. ¡Única terapia con video!</p>
+                <p><strong>Intensidad:</strong> Suave</p>
+                <p><strong>Modo Arduino:</strong> cascada</p>
+            </div>
+            
+            <div class="therapy-card">
+                <h4>⏸️ Terapia Pausada</h4>
+                <span class="badge">Audio</span>
+                <p><strong>Archivo:</strong> pausado-[duración]min.mp3</p>
+                <p><strong>Descripción:</strong> Cambios lentos y pausados para relajación profunda.</p>
+                <p><strong>Intensidad:</strong> Baja</p>
+                <p><strong>Modo Arduino:</strong> pausado</p>
+            </div>
+            
+            <div class="therapy-card">
+                <h4>⚡ Terapia Intermitente</h4>
+                <span class="badge">Audio</span>
+                <p><strong>Archivo:</strong> intermitente-[duración]min.mp3</p>
+                <p><strong>Descripción:</strong> Pulsos rápidos para estimulación y energía.</p>
+                <p><strong>Intensidad:</strong> Alta</p>
+                <p><strong>Modo Arduino:</strong> intermitente</p>
+            </div>
+        </div>
+
+        <h3>Terapias de Color</h3>
+        
+        <div class="therapy-grid">
+            <div class="therapy-card">
+                <h4>🔴 Terapia Roja</h4>
+                <span class="badge">Audio</span>
+                <p><strong>Archivo:</strong> rojo-[duración]min.mp3</p>
+                <p><strong>Descripción:</strong> Estimulación y energía vital. Color asociado con la fuerza y vitalidad.</p>
+                <p><strong>Color LED:</strong> Rojo puro (#FF0000)</p>
+                <p><strong>Modo Arduino:</strong> rojo</p>
+            </div>
+            
+            <div class="therapy-card">
+                <h4>🟢 Terapia Verde</h4>
+                <span class="badge">Audio</span>
+                <p><strong>Archivo:</strong> verde-[duración]min.mp3</p>
+                <p><strong>Descripción:</strong> Equilibrio y armonía natural. Color asociado con la sanación y crecimiento.</p>
+                <p><strong>Color LED:</strong> Verde puro (#00FF00)</p>
+                <p><strong>Modo Arduino:</strong> verde</p>
+            </div>
+            
+            <div class="therapy-card">
+                <h4>🔵 Terapia Azul</h4>
+                <span class="badge">Audio</span>
+                <p><strong>Archivo:</strong> azul-[duración]min.mp3</p>
+                <p><strong>Descripción:</strong> Calma y relajación profunda. Color asociado con la paz y tranquilidad.</p>
+                <p><strong>Color LED:</strong> Azul puro (#0000FF)</p>
+                <p><strong>Modo Arduino:</strong> azul</p>
+            </div>
+        </div>
+
+        <h3>Terapias Avanzadas</h3>
+        
+        <div class="therapy-grid">
+            <div class="therapy-card">
+                <h4>🧬 Biomagnética</h4>
+                <span class="badge">Audio</span>
+                <p>Terapia basada en campos biomagnéticos para equilibrio energético.</p>
+            </div>
+            
+            <div class="therapy-card">
+                <h4>💫 Fotónica</h4>
+                <span class="badge">Audio</span>
+                <p>Utiliza principios de la luz cuántica para armonización celular.</p>
+            </div>
+            
+            <div class="therapy-card">
+                <h4>🧠 Neurocuántica</h4>
+                <span class="badge">Audio</span>
+                <p>Estimulación neuronal mediante frecuencias cuánticas específicas.</p>
+            </div>
+            
+            <div class="therapy-card">
+                <h4>🔬 Bioresonancia</h4>
+                <span class="badge">Audio</span>
+                <p>Resonancia biológica para restaurar frecuencias naturales del cuerpo.</p>
+            </div>
+            
+            <div class="therapy-card">
+                <h4>⚛️ Atómica</h4>
+                <span class="badge">Audio</span>
+                <p>Terapia a nivel atómico para reestructuración energética profunda.</p>
+            </div>
+            
+            <div class="therapy-card">
+                <h4>🌿 Fitocuántica</h4>
+                <span class="badge">Audio</span>
+                <p>Combina principios cuánticos con esencias vegetales para sanación natural.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section" id="problemas">
+        <h2>🔧 Solución de Problemas</h2>
+        
+        <h3>Problemas de Audio</h3>
+        
+        <div class="troubleshooting">
+            <h4>❌ Audio No Se Reproduce</h4>
+            <p><strong>Síntomas:</strong> No se escucha audio durante la sesión, controles de volumen no responden.</p>
+            
+            <div class="solution">
+                <strong>✅ Soluciones:</strong>
+                <ol>
+                    <li><strong>Verificar volumen del sistema:</strong> Comprobar que el volumen del sistema operativo no esté silenciado</li>
+                    <li><strong>Ajustar controles de la aplicación:</strong> Usar el control deslizante de volumen en la interfaz</li>
+                    <li><strong>Verificar archivos:</strong> Confirmar que existe el archivo en la ruta correcta</li>
+                    <li><strong>Probar formatos alternativos:</strong> La aplicación intentará FLAC, OGG, WAV si MP3 falla</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="troubleshooting">
+            <h4>❌ Error de Formato de Audio</h4>
+            <p><strong>Síntomas:</strong> Mensaje "Audio no disponible para esta configuración"</p>
+            
+            <div class="solution">
+                <strong>✅ Verificar nomenclatura:</strong>
+                <div class="code-block">
+✅ Correcto: general-15min.mp3
+❌ Incorrecto: general_15_min.mp3
+❌ Incorrecto: General-15min.mp3
+❌ Incorrecto: general-15-min.mp3
+                </div>
+            </div>
+        </div>
+
+        <h3>Problemas de Video</h3>
+        
+        <div class="troubleshooting">
+            <h4>❌ Video No Se Reproduce</h4>
+            <p><strong>Síntomas:</strong> Ventana externa no muestra video, pantalla negra en Terapia Cascada.</p>
+            
+            <div class="solution">
+                <strong>✅ Verificaciones importantes:</strong>
+                <ul>
+                    <li><strong>Solo Terapia Cascada tiene video:</strong> Otras terapias muestran pantalla negra (comportamiento normal)</li>
+                    <li><strong>Ventanas emergentes:</strong> Permitir pop-ups en configuración del navegador</li>
+                    <li><strong>Archivos de video:</strong> Verificar que existen en public/video/cascada-[duración]min.mp4</li>
+                </ul>
+            </div>
+        </div>
+
+        <h3>Problemas de Arduino</h3>
+        
+        <div class="troubleshooting">
+            <h4>❌ Arduino No Se Conecta</h4>
+            <p><strong>Síntomas:</strong> "Arduino no detectado", "Error de conexión", botón de conexión no responde.</p>
+            
+            <div class="solution">
+                <strong>✅ Soluciones paso a paso:</strong>
+                <ol>
+                    <li><strong>Verificar hardware:</strong>
+                        <ul>
+                            <li>Conectar Arduino via USB</li>
+                            <li>Verificar LED de encendido en Arduino</li>
+                            <li>Probar otro cable USB</li>
+                        </ul>
+                    </li>
+                    <li><strong>Verificar software:</strong>
+                        <ul>
+                            <li>Usar Chrome 89+ o Edge (Web Serial API)</li>
+                            <li>Cargar sketch correcto en Arduino</li>
+                            <li>Configurar velocidad: 9600 baud</li>
+                        </ul>
+                    </li>
+                    <li><strong>Permisos:</strong>
+                        <ul>
+                            <li>Permitir acceso a puerto serie</li>
+                            <li>Cerrar Arduino IDE antes de conectar</li>
+                        </ul>
+                    </li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="troubleshooting">
+            <h4>❌ LEDs No Responden</h4>
+            <p><strong>Síntomas:</strong> Arduino conectado pero LEDs no se encienden, no hay cambios de color.</p>
+            
+            <div class="solution">
+                <strong>✅ Verificar conexiones:</strong>
+                <div class="code-block">
+Arduino Uno          NeoPixel Strip
+PIN 6     ────────── DIN
+5V        ────────── VCC  
+GND       ────────── GND
+
+Componentes adicionales:
+- Resistencia 470Ω entre PIN 6 y DIN
+- Capacitor 1000µF entre VCC y GND
+                </div>
+            </div>
+        </div>
+
+        <h3>Problemas de Rendimiento</h3>
+        
+        <div class="troubleshooting">
+            <h4>❌ Simulación 3D Lenta</h4>
+            <p><strong>Síntomas:</strong> Animación entrecortada, baja velocidad de fotogramas, navegador lento.</p>
+            
+            <div class="solution">
+                <strong>✅ Optimizaciones:</strong>
+                <ul>
+                    <li><strong>Reducir calidad gráfica:</strong> Cambiar a "Baja" en configuración de simulación</li>
+                    <li><strong>Usar vista minimizada:</strong> Mantiene funcionalidad con menor carga gráfica</li>
+                    <li><strong>Cerrar aplicaciones:</strong> Liberar memoria RAM y recursos del sistema</li>
+                    <li><strong>Actualizar drivers:</strong> Drivers gráficos actualizados mejoran rendimiento WebGL</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="section" id="faq">
+        <h2>❓ Preguntas Frecuentes</h2>
+        
+        <h3>General</h3>
+        
+        <div class="therapy-card">
+            <h4>¿Qué navegadores son totalmente compatibles?</h4>
+            <p><strong>Respuesta:</strong> Chrome y Edge ofrecen compatibilidad completa incluyendo conexión Arduino. Firefox y Safari funcionan pero sin soporte para Arduino (Web Serial API no disponible).</p>
+        </div>
+        
+        <div class="therapy-card">
+            <h4>¿Necesito Arduino para usar la aplicación?</h4>
+            <p><strong>Respuesta:</strong> No, la aplicación funciona completamente sin Arduino. El Arduino es opcional para control físico de LEDs, pero todas las terapias funcionan con simulación 3D.</p>
+        </div>
+        
+        <div class="therapy-card">
+            <h4>¿Funciona sin conexión a internet?</h4>
+            <p><strong>Respuesta:</strong> Sí, una vez instalada localmente, la aplicación funciona completamente offline. Solo necesita conexión para descargar actualizaciones.</p>
+        </div>
+
+        <h3>Terapias y Multimedia</h3>
+        
+        <div class="therapy-card">
+            <h4>¿Cuántas terapias están disponibles?</h4>
+            <p><strong>Respuesta:</strong> La aplicación incluye 15 terapias: 4 Básicas, 3 de Color, y 8 Avanzadas. Solo la Terapia Cascada incluye video.</p>
+        </div>
+        
+        <div class="therapy-card">
+            <h4>¿Puedo agregar mis propias terapias?</h4>
+            <p><strong>Respuesta:</strong> Sí, siguiendo la estructura de archivos y configuración descrita en este manual. Requiere conocimientos básicos de programación para modificar los componentes.</p>
+        </div>
+        
+        <div class="therapy-card">
+            <h4>¿Qué formatos de audio son mejores?</h4>
+            <p><strong>Respuesta:</strong> FLAC ofrece la mejor calidad sin pérdida, seguido de WAV. MP3 a 320 kbps es suficiente para la mayoría de usuarios. La aplicación intenta automáticamente diferentes formatos.</p>
+        </div>
+
+        <h3>Hardware y Conexiones</h3>
+        
+        <div class="therapy-card">
+            <h4>¿Qué modelo de Arduino necesito?</h4>
+            <p><strong>Respuesta:</strong> Arduino Uno es el más recomendado. También funciona con Nano, Leonardo, o cualquier compatible con 5V y suficientes pines digitales.</p>
+        </div>
+        
+        <div class="therapy-card">
+            <h4>¿Cuántos LEDs puedo controlar?</h4>
+            <p><strong>Respuesta:</strong> El código está configurado para 24 LEDs NeoPixel, pero se puede modificar fácilmente para más o menos LEDs cambiando la constante LED_COUNT.</p>
+        </div>
+        
+        <div class="therapy-card">
+            <h4>¿Funciona con otros tipos de LEDs?</h4>
+            <p><strong>Respuesta:</strong> Está optimizado para NeoPixel (WS2812B), pero se puede adaptar para otros tipos de LEDs RGB modificando el código Arduino.</p>
+        </div>
+    </div>
+
+    <div class="section" id="soporte">
+        <h2>🛠️ Soporte Técnico</h2>
+        
+        <h3>Información para Reportes</h3>
+        
+        <p>Al reportar problemas, incluye la siguiente información:</p>
+        
+        <div class="code-block">
+Sistema Operativo: Windows 10/11, macOS Monterey, Ubuntu 22.04
+Navegador: Chrome 120.0.6099.109
+Versión Aplicación: 1.0.0
+Arduino: Conectado/Desconectado - Modelo: Uno/Nano
+Terapia: [Nombre de la terapia problemática]
+Error específico: [Descripción detallada del problema]
+Pasos para reproducir: [Secuencia de acciones que causan el error]
+        </div>
+
+        <h3>Logs de Depuración</h3>
+        
+        <div class="step-by-step">
+            <div class="step">
+                <h4>Abrir Consola del Navegador</h4>
+                <ul>
+                    <li><strong>Chrome/Edge:</strong> F12 → Console</li>
+                    <li><strong>Firefox:</strong> F12 → Console</li>
+                    <li><strong>Safari:</strong> Cmd+Option+C</li>
+                </ul>
+            </div>
+            
+            <div class="step">
+                <h4>Ejecutar Comandos de Diagnóstico</h4>
+                <div class="code-block">
+// Copiar y pegar en la consola del navegador
+console.log("=== DIAGNÓSTICO CABINA AQ ===");
+console.log("Navigator:", navigator.userAgent);
+console.log("WebGL:", !!window.WebGLRenderingContext);
+console.log("Web Serial:", !!navigator.serial);
+console.log("Media Devices:", !!navigator.mediaDevices);
+console.log("Local Storage:", !!window.localStorage);
+console.log("Session Storage:", !!window.sessionStorage);
+                </div>
+            </div>
+            
+            <div class="step">
+                <h4>Capturar Errores</h4>
+                <p>Copiar cualquier mensaje de error en rojo que aparezca en la consola y incluirlo en el reporte.</p>
+            </div>
+        </div>
+
+        <h3>Canales de Soporte</h3>
+        
+        <div class="therapy-grid">
+            <div class="therapy-card">
+                <h4>📧 Email</h4>
+                <p><strong>Contacto:</strong> soporte@cabina-aq.com</p>
+                <p><strong>Tiempo de respuesta:</strong> 24-48 horas</p>
+                <p><strong>Ideal para:</strong> Problemas técnicos detallados</p>
+            </div>
+            
+            <div class="therapy-card">
+                <h4>🐛 GitHub Issues</h4>
+                <p><strong>URL:</strong> github.com/tu-usuario/cabina-aq/issues</p>
+                <p><strong>Tiempo de respuesta:</strong> Variable</p>
+                <p><strong>Ideal para:</strong> Bugs, mejoras, código</p>
+            </div>
+            
+            <div class="therapy-card">
+                <h4>📚 Documentación</h4>
+                <p><strong>Wiki:</strong> github.com/tu-usuario/cabina-aq/wiki</p>
+                <p><strong>Actualización:</strong> Continua</p>
+                <p><strong>Ideal para:</strong> Guías, tutoriales, FAQ</p>
+            </div>
+            
+            <div class="therapy-card">
+                <h4>💬 Comunidad</h4>
+                <p><strong>Discord:</strong> discord.gg/cabina-aq</p>
+                <p><strong>Disponibilidad:</strong> 24/7</p>
+                <p><strong>Ideal para:</strong> Ayuda rápida, discusión</p>
+            </div>
+        </div>
+
+        <h3>Actualizaciones</h3>
+        
+        <div class="info">
+            La aplicación se actualiza automáticamente cuando se ejecuta en modo desarrollo. Para actualizaciones manuales:
+        </div>
+        
+        <div class="code-block">
+# Actualizar dependencias
+npm update
+
+# Limpiar caché de construcción
+npm run clean
+
+# Reinstalar completamente
+rm -rf node_modules package-lock.json
+npm install
+
+# Verificar versión
+npm run version
+        </div>
+    </div>
+
+    <div class="footer">
+        <h2>📖 Manual de Usuario v1.0</h2>
+        <p><strong>Simulador de Cabina AQ - Terapia Cuántica Bioenergética</strong></p>
+        <p>Última actualización: Enero 2024</p>
+        <p>© 2024 Cabina AQ. Todos los derechos reservados.</p>
+    </div>
+</body>
+</html>
