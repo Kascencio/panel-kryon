@@ -15,7 +15,6 @@ interface Ctx {
 
   /* API de alto nivel ------------------------------------ */
   conectarArduino(): Promise<boolean>
-  // CORREGIDO: firma consistente con el uso
   iniciarTerapia(tipo: string, modo: string, minutos: number, intensidad: number): Promise<boolean>
   cambiarIntensidad(intensidad: number): Promise<boolean>
   detenerTerapia(): Promise<boolean>
@@ -74,7 +73,6 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
   /* -------------------------------------------------- */
   useEffect(() => {
     if (autoConnect && isSerialAvailable && !connected) {
-      // Intentar reconectar automáticamente si hay dispositivos previos
       navigator.serial.getPorts().then(ports => {
         if (ports.length > 0) {
           console.log("🔄 Intentando auto-reconexión...")
@@ -85,7 +83,7 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
   }, [autoConnect, isSerialAvailable, connected])
 
   /* -------------------------------------------------- */
-  /* Conexión                                           */
+  /* Conexión MEJORADA                                  */
   /* -------------------------------------------------- */
   const conectarArduino = useCallback(async (): Promise<boolean> => {
     if (!isSerialAvailable) {
@@ -129,11 +127,16 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
         }
       })()
 
-      // Enviar comando de prueba y esperar un poco
-      await writer.write(new TextEncoder().encode("test:conexion\n"))
+      // CAMBIO IMPORTANTE: Enviar comando de inicialización más simple
+      console.log("📡 Enviando comando de inicialización...")
+      await writer.write(new TextEncoder().encode("init\n"))
       
-      // Pequeña pausa para estabilizar la conexión
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Esperar más tiempo para estabilizar la conexión
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Enviar comando de prueba
+      console.log("📡 Enviando comando de prueba...")
+      await writer.write(new TextEncoder().encode("status\n"))
 
       setStatus("connected")
       toast({ title: "Arduino conectado exitosamente ✅" })
@@ -156,23 +159,29 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
   }, [connected, autoConnect, isSerialAvailable, toast])
 
   /* -------------------------------------------------- */
-  /* Util: enviar línea                                */
+  /* Util: enviar línea MEJORADO                       */
   /* -------------------------------------------------- */
   const sendLine = useCallback(async (cmd: string): Promise<boolean> => {
     if (!writerRef.current || !connected) {
       console.warn("❌ No se puede enviar comando: Arduino desconectado")
       toast({ 
         title: "Arduino desconectado", 
-        description: "Conecta el Arduino antes de iniciar la terapia",
+        description: "Conecta el Arduino antes de enviar comandos",
         variant: "destructive" 
       })
       return false
     }
     
     try {
+      console.log("📤 Enviando comando:", cmd)
       await writerRef.current.write(new TextEncoder().encode(cmd + "\n"))
       setLast(cmd)
-      console.log("📤 Enviando:", cmd)
+      
+      // Pequeña pausa después de enviar comando crítico
+      if (cmd.includes("inicio:") || cmd.includes("intensidad:")) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      
       return true
     } catch (e) {
       console.error("Error enviando comando:", e)
@@ -187,15 +196,19 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
   }, [connected, toast])
 
   /* -------------------------------------------------- */
-  /* Comandos de negocio - CORREGIDOS                  */
+  /* Comandos de negocio - FORMATO CORREGIDO           */
   /* -------------------------------------------------- */
   const iniciarTerapia = useCallback(async (tipo: string, modo: string, minutos: number, intensidad: number): Promise<boolean> => {
-    // Formato más completo para el Arduino
-    const comando = `inicio:${modo},${intensidad},${minutos},${tipo}`
-    console.log("🚀 Iniciando terapia:", { tipo, modo, minutos, intensidad })
+    // CAMBIO IMPORTANTE: Formato simplificado y consistente
+    const comando = `inicio:${modo},${intensidad},${minutos}`
+    console.log("🚀 Iniciando terapia:", { tipo, modo, minutos, intensidad, comando })
     
     const success = await sendLine(comando)
     if (success) {
+      // Enviar comando adicional para activar luces inmediatamente
+      await new Promise(resolve => setTimeout(resolve, 200))
+      await sendLine(`luces:on`)
+      
       toast({ 
         title: "Terapia iniciada", 
         description: `Modo: ${modo}, Intensidad: ${intensidad}%, Duración: ${minutos}min`
@@ -215,6 +228,9 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
     console.log("🛑 Deteniendo terapia")
     const success = await sendLine("stop")
     if (success) {
+      // Asegurar que las luces se apaguen
+      await new Promise(resolve => setTimeout(resolve, 100))
+      await sendLine("luces:off")
       toast({ title: "Terapia detenida" })
     }
     return success
@@ -224,6 +240,9 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
     console.log("✅ Completando terapia")
     const success = await sendLine("completado")
     if (success) {
+      // Apagar luces al completar
+      await new Promise(resolve => setTimeout(resolve, 100))
+      await sendLine("luces:off")
       toast({ title: "Terapia completada exitosamente ✨" })
     }
     return success

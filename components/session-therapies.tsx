@@ -36,7 +36,8 @@ export interface Therapy {
   icon: string
   category: string
   hasVideo?: boolean
-  customMode?: string     // ← nuevo campo
+  customMode?: string       // marca modo custom
+  initialIntensity?: number // intensidad inicial seleccionada
 }
 
 interface Props {
@@ -70,7 +71,7 @@ export default function SessionTherapies({ onTherapySelect, selectedTherapy }: P
   const openCustomize = (therapy: Therapy) => {
     setDialog({ open: true, therapy })
     setSelectedMode(therapy.frequency)
-    setSelectedIntensity(80)
+    setSelectedIntensity(therapy.initialIntensity ?? 80)
   }
 
   const saveCustomization = () => {
@@ -84,7 +85,8 @@ export default function SessionTherapies({ onTherapySelect, selectedTherapy }: P
       color: mode.color,
       icon: mode.icon,
       description: mode.description,
-      customMode: mode.id,    // ← marcamos modo custom
+      customMode: mode.id,
+      initialIntensity: selectedIntensity,
     })
     setDialog({ open: false, therapy: null })
   }
@@ -94,8 +96,8 @@ export default function SessionTherapies({ onTherapySelect, selectedTherapy }: P
       {sessionTherapies.map(t => (
         <Card
           key={t.id}
-          onClick={() => onTherapySelect(t)}
-          className={`bg-gray-800 border-gray-700 hover:border-gray-600 cursor-pointer transition-all ${
+          onClick={() => onTherapySelect({ ...t, initialIntensity: t.initialIntensity ?? 80 })}
+          className={`bg-gray-800 border-gray-700 hover:border-gray-600 cursor-pointer transition-all $
             selectedTherapy?.id === t.id ? "ring-2 ring-cyan-500 border-cyan-500" : ""
           }`}
         >
@@ -119,7 +121,7 @@ export default function SessionTherapies({ onTherapySelect, selectedTherapy }: P
                 <Button
                   size="sm"
                   className="flex-1 bg-green-600 hover:bg-green-500 text-white"
-                  onClick={e => { e.stopPropagation(); onTherapySelect(t) }}
+                  onClick={e => { e.stopPropagation(); onTherapySelect({ ...t, initialIntensity: t.initialIntensity ?? 80 }) }}
                 >
                   <Play className="h-3 w-3 mr-1" />
                   Iniciar

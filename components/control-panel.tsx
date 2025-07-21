@@ -1,4 +1,5 @@
 "use client"
+
 import { useState, useCallback, useEffect } from "react"
 import {
   Play,
@@ -37,7 +38,11 @@ import { useToast } from "@/hooks/use-toast"
 import type { Therapy } from "@/components/session-therapies"
 
 /* ────────── helpers ────────── */
-const allTherapies = [...sessionTherapies, ...(Array.isArray(colorTherapies) ? colorTherapies : [colorTherapies]), ...therapies]
+const allTherapies = [
+  ...sessionTherapies,
+  ...(Array.isArray(colorTherapies) ? colorTherapies : [colorTherapies]),
+  ...therapies,
+]
 
 const availableModes = [
   { id: "patron",        name: "Patrón Complejo", icon: "🔄", arduinoMode: "general"       },
@@ -109,13 +114,8 @@ export default function ControlPanel({
   const getEffectiveMode = useCallback(() => {
     if (selectedMode) return selectedMode
     if (!selectedTherapy) return "patron"
-    if (selectedTherapy.frequency === "intermitente") return "intermitente"
-    if (selectedTherapy.frequency === "pausado")      return "pausado"
-    if (selectedTherapy.frequency === "cascada")      return "cascada"
-    if (selectedTherapy.id === "red")   return "rojo"
-    if (selectedTherapy.id === "green") return "verde"
-    if (selectedTherapy.id === "blue")  return "azul"
-    return "patron"
+    if (selectedTherapy.customMode) return selectedTherapy.customMode
+    return selectedTherapy.frequency
   }, [selectedMode, selectedTherapy])
 
   const getArduinoMode = useCallback(() => {
@@ -136,17 +136,13 @@ export default function ControlPanel({
     }
 
     setIsStarting(true)
-    
-    // Si Arduino no está conectado, intentar conectar primero
     if (!connected) {
-      console.log("🔌 Arduino desconectado, intentando conectar...")
-      const conectado = await conectarArduino()
-      if (!conectado) {
+      const ok = await conectarArduino()
+      if (!ok) {
         setIsStarting(false)
         return
       }
-      // Esperar un momento después de conectar
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await new Promise(r => setTimeout(r, 500))
     }
 
     try {
@@ -155,25 +151,21 @@ export default function ControlPanel({
       const mins = durationInMinutes(sessionDuration)
       const inten = lightIntensity
 
-      console.log("🎯 Iniciando terapia con parámetros:", { tipo, modo, mins, inten })
-      
       const success = await iniciarTerapia(tipo, modo, mins, inten)
-      
       if (success) {
         onStartSession()
         toast({ 
-          title: "Terapia iniciada exitosamente ✨",
-          description: `${selectedTherapy.name} - ${mins} minutos`
+          title: "Terapia iniciada ✨",
+          description: `${selectedTherapy.name} - ${mins} min`
         })
       } else {
         toast({ 
           title: "Error al iniciar terapia",
-          description: "No se pudo comunicar con el Arduino",
+          description: "Verifica conexión con Arduino",
           variant: "destructive" 
         })
       }
-    } catch (error) {
-      console.error("Error al iniciar terapia:", error)
+    } catch {
       toast({ 
         title: "Error inesperado",
         description: "Ocurrió un error al iniciar la terapia",
@@ -183,15 +175,15 @@ export default function ControlPanel({
       setIsStarting(false)
     }
   }, [
-    selectedTherapy, 
-    connected, 
-    conectarArduino, 
-    getArduinoMode, 
-    sessionDuration, 
-    lightIntensity, 
-    iniciarTerapia, 
-    onStartSession, 
-    toast
+    selectedTherapy,
+    connected,
+    conectarArduino,
+    getArduinoMode,
+    sessionDuration,
+    lightIntensity,
+    iniciarTerapia,
+    onStartSession,
+    toast,
   ])
 
   /* ────────── DETENER sesión mejorado ────────── */
@@ -199,53 +191,33 @@ export default function ControlPanel({
     try {
       await detenerTerapia()
       onStopSession()
-    } catch (error) {
-      console.error("Error al detener terapia:", error)
+    } catch {
       toast({ 
         title: "Error al detener",
-        description: "Ocurrió un error al detener la terapia",
+        description: "No se pudo detener la terapia",
         variant: "destructive" 
       })
     }
   }, [detenerTerapia, onStopSession, toast])
 
-  /* ────────── al terminar audio / video ────────── */
+  /* ────────── MEDIA completa ────────── */
   const handleMediaComplete = useCallback(async () => {
     try {
       await completarTerapia()
-      onCompleteSession()
-    } catch (error) {
-      console.error("Error al completar terapia:", error)
-      // Completar de todas formas en la UI
+    } finally {
       onCompleteSession()
     }
   }, [completarTerapia, onCompleteSession])
 
-  /* ────────── cambio de intensidad en tiempo real ────────── */
-  const handleIntensityChange = useCallback(async (newIntensity: number[]) => {
-    const intensity = newIntensity[0]
+  /* ────────── cambio de intensidad ────────── */
+  const handleIntensityChange = useCallback((vals: number[]) => {
+    const intensity = vals[0]
     onLightIntensityChange(intensity)
-    
-    // Si hay sesión activa, enviar al Arduino inmediatamente
     if (sessionActive && connected) {
       setIsSendingIntensity(true)
-      try {
-        await enviarComando(`intensidad:${intensity}`)
-      } catch (error) {
-        console.error("Error cambiando intensidad:", error)
-      } finally {
-        setIsSendingIntensity(false)
-      }
+      enviarComando(`intensidad:${intensity}`).finally(() => setIsSendingIntensity(false))
     }
   }, [sessionActive, connected, onLightIntensityChange, enviarComando])
-
-  /* ────────── controles de prueba ────────── */
-  const testCommands = [
-    { label: "Test Rojo", command: "test:rojo" },
-    { label: "Test Verde", command: "test:verde" },
-    { label: "Test Azul", command: "test:azul" },
-    { label: "Test Apagar", command: "test:apagar" },
-  ]
 
   /* ────────── UI ────────── */
   return (
@@ -268,29 +240,23 @@ export default function ControlPanel({
 
       <CardContent className="space-y-4 pt-3">
         {/* STATUS BAR */}
-        <div className="flex justify-between items-center mb-2">
-          <div className="flex items-center space-x-2 text-xs text-gray-400">
-            <span>
-              {sessionActive ? "🔴 Sesión activa" : "⏸️ En espera"}
-            </span>
+        <div className="flex justify-between items-center mb-2 text-xs text-gray-400">
+          <span>{sessionActive ? "🔴 Activa" : "⏸️ En espera"}</span>
+          <span className="flex items-center">
             {connected ? (
-              <span className="text-green-400 flex items-center">
-                <Usb className="mr-1 h-3 w-3"/> Arduino OK
-              </span>
+              <><Usb className="h-3 w-3 mr-1 text-green-400"/>OK</>
             ) : (
-              <span className="text-red-400 flex items-center">
-                <Usb className="mr-1 h-3 w-3"/> Desconectado
-              </span>
+              <><Usb className="h-3 w-3 mr-1 text-red-400"/>Off</>
             )}
-            {selectedTherapy && (
-              <Badge variant="outline" className="text-xs">
-                {getEffectiveMode()}
-              </Badge>
-            )}
-          </div>
+          </span>
+          {selectedTherapy && (
+            <Badge variant="outline" className="text-xs">
+              {getEffectiveMode()}
+            </Badge>
+          )}
         </div>
 
-        {/* BOTÓN PRINCIPAL */}
+        {/* MAIN BUTTON */}
         <div className="flex space-x-2">
           <Button
             onClick={sessionActive ? handleStopSession : handleStartSession}
@@ -304,20 +270,14 @@ export default function ControlPanel({
             size="sm"
           >
             {isStarting ? (
-              <>
-                <RefreshCw className="mr-2 h-3 w-3 animate-spin"/> Iniciando...
-              </>
+              <><RefreshCw className="mr-2 h-3 w-3 animate-spin"/>Iniciando...</>
             ) : sessionActive ? (
-              <>
-                <Pause className="mr-2 h-3 w-3"/> Detener
-              </>
+              <><Pause className="mr-2 h-3 w-3"/>Detener</>
             ) : (
-              <>
-                <Play className="mr-2 h-3 w-3"/> Iniciar
-              </>
+              <><Play className="mr-2 h-3 w-3"/>Iniciar</>
             )}
           </Button>
-          
+
           {!connected && (
             <Button
               onClick={conectarArduino}
@@ -330,54 +290,30 @@ export default function ControlPanel({
           )}
         </div>
 
-        {/* CONTROLES DE INTENSIDAD */}
+        {/* INTENSITY CONTROL */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label className="text-xs text-gray-300 flex items-center">
-              <Zap className="mr-1 h-3 w-3"/> Intensidad: {lightIntensity}%
-            </Label>
-            {isSendingIntensity && (
-              <RefreshCw className="h-3 w-3 animate-spin text-cyan-400"/>
-            )}
+          <div className="flex items-center justify-between text-xs text-gray-300">
+            <span className="flex items-center"><Zap className="mr-1 h-3 w-3"/>Intensidad: {lightIntensity}%</span>
+            {isSendingIntensity && <RefreshCw className="h-3 w-3 animate-spin text-cyan-400"/>}
           </div>
           <Slider
             value={[lightIntensity]}
             onValueChange={handleIntensityChange}
             max={100}
             step={1}
-            className="w-full"
             disabled={!connected}
           />
         </div>
 
-        {/* CONTROLES DE PRUEBA */}
-        {showTestControls && connected && (
-          <div className="border-t border-gray-700 pt-3">
-            <Label className="text-xs text-gray-400 mb-2 block">
-              Controles de Prueba
-            </Label>
-            <div className="grid grid-cols-2 gap-2">
-              {testCommands.map((test) => (
-                <Button
-                  key={test.command}
-                  onClick={() => enviarComando(test.command)}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  disabled={sessionActive}
-                >
-                  {test.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* DURACIÓN */}
+        {/* MODE SELECT (read-only) */}
         <div className="space-y-2">
-          <Label className="text-xs text-gray-300 flex items-center">
-            <Clock className="mr-1 h-3 w-3"/> Duración
-          </Label>
+          <Label className="text-xs text-gray-300">Modo</Label>
+          <div className="text-sm">{getEffectiveMode()}</div>
+        </div>
+
+        {/* DURATION */}
+        <div className="space-y-2">
+          <Label className="text-xs text-gray-300 flex items-center"><Clock className="mr-1 h-3 w-3"/>Duración</Label>
           <RadioGroup
             value={sessionDuration}
             onValueChange={(v) => onDurationChange(v as any)}
@@ -399,39 +335,34 @@ export default function ControlPanel({
           </RadioGroup>
         </div>
 
-        {/* SELECTOR DE MEDIA */}
+        {/* MEDIA TYPE SELECT */}
         {selectedTherapy?.hasVideo && (
           <div className="space-y-2">
-            <Label className="text-xs text-gray-300">Tipo de Media</Label>
-            <Select value={mediaType} onValueChange={(v: "audio" | "video") => setMediaType(v)}>
+            <Label className="text-xs text-gray-300">Tipo Media</Label>
+            <Select
+              value={mediaType}
+              onValueChange={(v: "audio" | "video") => setMediaType(v)}
+            >
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue/>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="audio">
-                  <div className="flex items-center">
-                    <Music className="mr-2 h-3 w-3"/> Audio
-                  </div>
-                </SelectItem>
-                <SelectItem value="video">
-                  <div className="flex items-center">
-                    <Video className="mr-2 h-3 w-3"/> Video
-                  </div>
-                </SelectItem>
+                <SelectItem value="audio"><><Music className="mr-2 h-3 w-3"/>Audio</></SelectItem>
+                <SelectItem value="video"><><Video className="mr-2 h-3 w-3"/>Video</></SelectItem>
               </SelectContent>
             </Select>
           </div>
         )}
 
-        {/* ADVERTENCIA DE DURACIÓN */}
+        {/* DURATION WARNING */}
         <AudioDurationWarning
           sessionDuration={sessionDuration}
           audioDuration={audioDuration}
           videoDuration={videoDuration}
         />
 
-        {/* REPRODUCTOR */}
-        {mediaType === "audio" || !selectedTherapy?.hasVideo ? (
+        {/* PLAYER */}
+        {(mediaType === "audio" || !selectedTherapy?.hasVideo) ? (
           <AudioPlayer
             sessionActive={sessionActive}
             sessionDuration={sessionDuration}
@@ -451,7 +382,7 @@ export default function ControlPanel({
         )}
 
         {/* MONITOR */}
-        <ArduinoCommandMonitor/>
+        <ArduinoCommandMonitor />
       </CardContent>
     </Card>
   )

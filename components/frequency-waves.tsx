@@ -41,11 +41,11 @@ export default function FrequencyWaves({ frequency, color, intensity, animationF
           return { waves: 2, speed: 0.3, amplitude: 0.2 }
         case "intermitente":
           return { waves: 4, speed: 2, amplitude: 0.5 }
-        case "red":
+        case "rojo":
           return { waves: 3, speed: 1.5, amplitude: 0.4 }
-        case "green":
+        case "verde":
           return { waves: 4, speed: 0.8, amplitude: 0.3 }
-        case "blue":
+        case "azul":
           return { waves: 2, speed: 0.6, amplitude: 0.25 }
         default:
           return { waves: 3, speed: 1, amplitude: 0.3 }
