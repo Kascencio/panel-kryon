@@ -380,9 +380,6 @@ export default function ControlPanel({
             isExternalScreen={false}
           />
         )}
-
-        {/* MONITOR */}
-        <ArduinoCommandMonitor />
       </CardContent>
     </Card>
   )

@@ -126,7 +126,7 @@ export function AudioCacheProvider({ children }: { children: ReactNode }) {
           loadedAt: Date.now(),
         }
 
-        setCache((prev) => new Map(prev).set(src, cacheItem))
+        setCache((prev) => { const m = new Map(prev); m.set(src, cacheItem); return m })
         console.log(`✅ Precargado: ${src} (${Math.floor(duration)}s)`)
         return true
       } catch (error) {
@@ -160,31 +160,21 @@ export function AudioCacheProvider({ children }: { children: ReactNode }) {
         const batch = files.slice(i, i + batchSize)
 
         // Procesar lote en paralelo
-        const promises = batch.map((file) => preloadSingleFile(file))
-        const results = await Promise.allSettled(promises)
+        const results = await Promise.allSettled(batch.map(file => preloadSingleFile(file)))
 
-        // Contar archivos cargados exitosamente
-        results.forEach((result, index) => {
-          if (result.status === "fulfilled" && result.value) {
-            loaded++
-          } else {
-            errors++
-          }
-
+        results.forEach((result) => {
+          if (result.status === 'fulfilled' && result.value) loaded++
+          else errors++
           setLoadedFiles(loaded)
           setPreloadProgress(((loaded + errors) / totalFiles) * 100)
         })
 
-        // Pausa pequeña entre lotes para no saturar
-        if (i + batchSize < files.length) {
-          await new Promise((resolve) => setTimeout(resolve, 200))
-        }
+        if (i + batchSize < files.length) await new Promise(res => setTimeout(res, 200))
       }
     }
 
     try {
       await processBatch(AUDIO_FILES)
-
       if (errors > 0) {
         setHasError(true)
         console.warn(`⚠️ Precarga completada con ${errors} errores de ${totalFiles} archivos`)
@@ -203,50 +193,19 @@ export function AudioCacheProvider({ children }: { children: ReactNode }) {
   // Iniciar precarga automáticamente al montar
   useEffect(() => {
     if (!hasStartedPreload) {
-      // Pequeño delay para no bloquear el render inicial
-      const timer = setTimeout(() => {
-        preloadAudio()
-      }, 1000)
-
+      const timer = setTimeout(preloadAudio, 1000)
       return () => clearTimeout(timer)
     }
   }, [hasStartedPreload, preloadAudio])
 
   // Métodos del contexto
-  const getAudioBlob = useCallback(
-    (src: string): Blob | null => {
-      return cache.get(src)?.blob || null
-    },
-    [cache],
-  )
-
-  const getAudioUrl = useCallback(
-    (src: string): string | null => {
-      return cache.get(src)?.url || null
-    },
-    [cache],
-  )
-
-  const getAudioDuration = useCallback(
-    (src: string): number => {
-      return cache.get(src)?.duration || 0
-    },
-    [cache],
-  )
-
-  const isAudioReady = useCallback(
-    (src: string): boolean => {
-      return cache.has(src)
-    },
-    [cache],
-  )
+  const getAudioBlob = useCallback((src: string) => cache.get(src)?.blob || null, [cache])
+  const getAudioUrl = useCallback((src: string) => cache.get(src)?.url || null, [cache])
+  const getAudioDuration = useCallback((src: string) => cache.get(src)?.duration || 0, [cache])
+  const isAudioReady = useCallback((src: string) => cache.has(src), [cache])
 
   const clearCache = useCallback(() => {
-    // Limpiar URLs de blob para evitar memory leaks
-    cache.forEach((item) => {
-      URL.revokeObjectURL(item.url)
-    })
-
+    cache.forEach(item => URL.revokeObjectURL(item.url))
     setCache(new Map())
     setPreloadProgress(0)
     setLoadedFiles(0)
@@ -256,15 +215,11 @@ export function AudioCacheProvider({ children }: { children: ReactNode }) {
   }, [cache])
 
   // Cleanup al desmontar
-  useEffect(() => {
-    return () => {
-      cache.forEach((item) => {
-        URL.revokeObjectURL(item.url)
-      })
-    }
+  useEffect(() => () => {
+    cache.forEach(item => URL.revokeObjectURL(item.url))
   }, [cache])
 
-  const value: AudioCacheContextType = {
+  const value = {
     isPreloading,
     preloadProgress,
     totalFiles,
@@ -283,8 +238,6 @@ export function AudioCacheProvider({ children }: { children: ReactNode }) {
 
 export function useAudioCache() {
   const context = useContext(AudioCacheContext)
-  if (context === undefined) {
-    throw new Error("useAudioCache debe ser usado dentro de un AudioCacheProvider")
-  }
+  if (!context) throw new Error("useAudioCache debe ser usado dentro de un AudioCacheProvider")
   return context
 }

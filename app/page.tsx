@@ -5,97 +5,15 @@ import { Toaster } from "@/components/ui/toaster"
 import ArduinoServiceProvider from "@/components/arduino-service"
 import { CustomTherapyProvider } from "@/components/custom-therapy-provider"
 import { AudioCacheProvider } from "@/components/audio-cache-provider"
-import TherapySelectionScreen from "@/components/therapy-selection-screen"
+import TherapySelectionScreen, {
+  type Therapy, // reutilizamos el tipo del selector
+} from "@/components/therapy-selection-screen"
 import SessionControlScreen from "@/components/session-control-screen"
 import SimpleExternalWindowManager from "@/components/simple-external-window-manager"
+import LoadingScreen from "@/components/loading-screen"
 
-interface Therapy {
-  id: string
-  name: string
-  description: string
-  duration?: number
-  frequency: string
-  color: string
-  icon: string
-  category: string
-  hasVideo?: boolean
-}
-
-type AppScreen = "selection" | "session"
-
-function CabinaApp() {
-  const [currentScreen, setCurrentScreen] = useState<AppScreen>("selection")
-  const [selectedTherapy, setSelectedTherapy] = useState<Therapy | null>(null)
-  const [selectedDuration, setSelectedDuration] = useState<"corto" | "mediano" | "largo">("corto")
-  const [lightIntensity, setLightIntensity] = useState(80)
-  const [appInitialized, setAppInitialized] = useState(false)
-
-  // Inicializar la app
-  useEffect(() => {
-    // Marcar como inicializada después de un breve delay
-    const timer = setTimeout(() => {
-      setAppInitialized(true)
-    }, 1000)
-
-    return () => clearTimeout(timer)
-  }, [])
-
-  const getDurationInMinutes = () => {
-    switch (selectedDuration) {
-      case "corto":
-        return 4
-      case "mediano":
-        return 15
-      case "largo":
-        return 20
-      default:
-        return 4
-    }
-  }
-
-  const handleStartTherapy = (therapy: Therapy, duration: "corto" | "mediano" | "largo") => {
-    setSelectedTherapy(therapy)
-    setSelectedDuration(duration)
-    setCurrentScreen("session")
-  }
-
-  const handleEndSession = () => {
-    setCurrentScreen("selection")
-    setSelectedTherapy(null)
-  }
-
-  return (
-    <>
-      <main className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-        {currentScreen === "selection" ? (
-          <TherapySelectionScreen onStartTherapy={handleStartTherapy} />
-        ) : (
-          selectedTherapy && (
-            <SessionControlScreen
-              therapy={selectedTherapy}
-              duration={selectedDuration}
-              onEndSession={handleEndSession}
-              lightIntensity={lightIntensity}
-              onLightIntensityChange={setLightIntensity}
-            />
-          )
-        )}
-        <Toaster />
-      </main>
-
-      {/* Ventana externa - activa desde el inicio de la app */}
-      <SimpleExternalWindowManager
-        doorOpen={appInitialized} // Se activa cuando la app se inicializa
-        sessionActive={currentScreen === "session"}
-        sessionType={currentScreen === "session" ? "therapy" : "standby"}
-        therapyColor={selectedTherapy?.color || "#0891b2"}
-        sessionDuration={getDurationInMinutes()}
-        lightIntensity={lightIntensity}
-        selectedTherapy={selectedTherapy}
-      />
-    </>
-  )
-}
+/* ────────── Pantallas ────────── */
+type AppScreen = "loading" | "selection" | "session"
 
 export default function Home() {
   return (
@@ -106,5 +24,84 @@ export default function Home() {
         </CustomTherapyProvider>
       </ArduinoServiceProvider>
     </AudioCacheProvider>
+  )
+}
+
+function CabinaApp() {
+  /* ────────── Estado global ────────── */
+  const [screen, setScreen] = useState<AppScreen>("loading")
+  const [therapy, setTherapy] = useState<Therapy | null>(null)
+  const [duration, setDuration] = useState<"corto" | "mediano" | "largo">(
+    "corto",
+  )
+  const [light, setLight] = useState(80)
+
+  /* ────────── Bootstrap (splash) ────────── */
+  useEffect(() => {
+    const init = async () => {
+      await new Promise((r) => setTimeout(r, 3000)) // 1 s de “Loading…”
+      setScreen("selection")
+    }
+    init()
+  }, [])
+
+  /* ────────── Inicio de sesión ────────── */
+  const handleStartTherapy = (
+    t: Therapy,
+    headerDur: "corto" | "mediano" | "largo",
+  ) => {
+    /* duración: la del diálogo tiene prioridad */
+    const finalDur = t.sessionDuration ?? headerDur
+    setDuration(finalDur)
+
+    /* intensidad inicial sincronizada si existe */
+    if (typeof t.initialIntensity === "number") {
+      setLight(t.initialIntensity)
+    }
+
+    setTherapy(t)          // versión (posiblemente) personalizada
+    setScreen("session")
+  }
+
+  /* ────────── Fin de sesión ────────── */
+  const handleEndSession = () => {
+    setTherapy(null)
+    setScreen("selection")
+  }
+
+  /* ────────── util duración (min) ────────── */
+  const minutes = { corto: 4, mediano: 15, largo: 20 }[duration]
+
+  /* ────────── Render según pantalla ────────── */
+  if (screen === "loading") return <LoadingScreen />
+
+  return (
+    <>
+      <main className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+        {screen === "selection" ? (
+          <TherapySelectionScreen onStartTherapy={handleStartTherapy} />
+        ) : therapy ? (
+          <SessionControlScreen
+            therapy={therapy}
+            duration={duration}
+            lightIntensity={light}
+            onLightIntensityChange={setLight}
+            onEndSession={handleEndSession}
+          />
+        ) : null}
+        <Toaster />
+      </main>
+
+      {/* Ventana externa opcional */}
+      <SimpleExternalWindowManager
+        doorOpen={screen !== "loading"}
+        sessionActive={screen === "session"}
+        sessionType={screen === "session" ? "therapy" : "standby"}
+        therapyColor={therapy?.color || "#0891b2"}
+        sessionDuration={minutes}
+        lightIntensity={light}
+        selectedTherapy={therapy}
+      />
+    </>
   )
 }

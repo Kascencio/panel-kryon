@@ -1,300 +1,266 @@
 "use client"
+
 import React, {
-  createContext, useContext, useState, useEffect,
-  useRef, useCallback, type ReactNode,
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  ReactNode,
 } from "react"
 import { useToast } from "@/hooks/use-toast"
 
+/* ────────── Tipos ────────── */
 type Status = "disconnected" | "connecting" | "connected" | "error"
+interface PortInfo { usbVendorId?: number; usbProductId?: number }
 
 interface Ctx {
   connected: boolean
   connectionStatus: Status
   isSerialAvailable: boolean
   lastCommand: string | null
-
-  /* API de alto nivel ------------------------------------ */
   conectarArduino(): Promise<boolean>
   iniciarTerapia(tipo: string, modo: string, minutos: number, intensidad: number): Promise<boolean>
   cambiarIntensidad(intensidad: number): Promise<boolean>
   detenerTerapia(): Promise<boolean>
   completarTerapia(): Promise<boolean>
-
-  /* Útil si quieres mandar algo ad‑hoc */
   enviarComando(cmd: string): Promise<boolean>
-
-  /* Preferencia */
   autoConnect: boolean
   setAutoConnect(val: boolean): void
 }
 
 const ArduinoCtx = createContext<Ctx | undefined>(undefined)
-export const useArduinoService = () => {
-  const c = useContext(ArduinoCtx)
-  if (!c) throw new Error("useArduinoService must be inside provider")
-  return c
+export const useArduinoService = (): Ctx => {
+  const ctx = useContext(ArduinoCtx)
+  if (!ctx) throw new Error("useArduinoService must be inside ArduinoServiceProvider")
+  return ctx
 }
 
+/* ────────── Constantes ────────── */
+const ESP32_USB_FILTERS: SerialPortFilter[] = [
+  { usbVendorId: 0x10c4, usbProductId: 0xea60 },
+  { usbVendorId: 0x0403, usbProductId: 0x6015 },
+  { usbVendorId: 0x1a86, usbProductId: 0x7523 },
+]
+const BAUD_RATE = 115200
+
+/* ══════════ Provider ══════════ */
 export default function ArduinoServiceProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast()
+  const [connectionStatus, setConnectionStatus] = useState<Status>("disconnected")
+  const [autoConnect, setAutoConnect] = useState(false)
+  const [lastCommand, setLastCommand] = useState<string | null>(null)
 
-  /* -------------------------------------------------- */
-  /* Estado base                                        */
-  /* -------------------------------------------------- */
-  const [connectionStatus, setStatus] = useState<Status>("disconnected")
-  const [autoConnect, setAutoConnect]   = useState(false)
-  const [lastCommand, setLast]         = useState<string | null>(null)
-
-  const portRef   = useRef<SerialPort | null>(null)
-  const readerRef = useRef<ReadableStreamDefaultReader | null>(null)
-  const writerRef = useRef<WritableStreamDefaultWriter | null>(null)
+  const portRef = useRef<SerialPort | null>(null)
+  const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
+  const writerRef = useRef<WritableStreamDefaultWriter<Uint8Array> | null>(null)
 
   const isSerialAvailable = typeof navigator !== "undefined" && "serial" in navigator
   const connected = connectionStatus === "connected"
 
-  /* -------------------------------------------------- */
-  /* Guardar / cargar preferencia                       */
-  /* -------------------------------------------------- */
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const pref = localStorage.getItem("arduino-auto-connect")
-      if (pref === "true") setAutoConnect(true)
-    }
-  }, [])
-  
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("arduino-auto-connect", String(autoConnect))
-    }
-  }, [autoConnect])
-
-  /* -------------------------------------------------- */
-  /* Auto-conexión al cargar                           */
-  /* -------------------------------------------------- */
-  useEffect(() => {
-    if (autoConnect && isSerialAvailable && !connected) {
-      navigator.serial.getPorts().then(ports => {
-        if (ports.length > 0) {
-          console.log("🔄 Intentando auto-reconexión...")
-          conectarArduino().catch(console.error)
-        }
-      })
-    }
-  }, [autoConnect, isSerialAvailable, connected])
-
-  /* -------------------------------------------------- */
-  /* Conexión MEJORADA                                  */
-  /* -------------------------------------------------- */
-  const conectarArduino = useCallback(async (): Promise<boolean> => {
-    if (!isSerialAvailable) {
-      toast({ title: "Serial API no disponible", variant: "destructive" })
-      return false
-    }
-    if (connected) return true
-
-    setStatus("connecting")
+  /* ────────── Persistencia de puerto ────────── */
+  const savePortInfo = (info: PortInfo) => {
+    try { localStorage.setItem("esp32-port-info", JSON.stringify(info)) } catch {}
+  }
+  const loadPortInfo = (): PortInfo | null => {
     try {
-      const port = await navigator.serial.requestPort()
-      await port.open({ baudRate: 9600 })
+      const raw = localStorage.getItem("esp32-port-info")
+      return raw ? JSON.parse(raw) : null
+    } catch {
+      return null
+    }
+  }
+
+  /* ────────── Abrir puerto ────────── */
+  const openPort = useCallback(async (port: SerialPort): Promise<boolean> => {
+    // FIX 1  • evitar abrir si ya está abierto
+    if (port.readable && port.writable) {
+      portRef.current = port
+      readerRef.current = port.readable.getReader()
+      writerRef.current = port.writable.getWriter()
+      setConnectionStatus("connected")
+      toast({ title: "ESP32 conectado", description: "Puerto ya estaba abierto" })
+      return true
+    }
+
+    try {
+      setConnectionStatus("connecting")
+      await port.open({ baudRate: BAUD_RATE })
 
       const reader = port.readable!.getReader()
       const writer = port.writable!.getWriter()
-
-      portRef.current   = port
+      portRef.current = port
       readerRef.current = reader
       writerRef.current = writer
+      savePortInfo(port.getInfo())
 
-      /* lectura simple de debug */
+      /* listener debug */
       ;(async () => {
         try {
           while (true) {
             const { value, done } = await reader.read()
             if (done) break
-            const response = new TextDecoder().decode(value).trim()
-            console.log("🟢 Arduino >", response)
-            
-            // Mostrar respuestas importantes del Arduino
-            if (response.includes("error") || response.includes("Error")) {
-              toast({ 
-                title: "Arduino Error", 
-                description: response,
-                variant: "destructive" 
-              })
+            const text = new TextDecoder().decode(value).trim()
+            console.log("🟢 ESP32 >", text)
+            if (/error/i.test(text)) {
+              toast({ title: "ESP32 Error", description: text, variant: "destructive" })
             }
           }
         } catch (err) {
-          console.warn("reader error", err)
+          console.warn("ESP32 reader error", err)
         }
       })()
 
-      // CAMBIO IMPORTANTE: Enviar comando de inicialización más simple
-      console.log("📡 Enviando comando de inicialización...")
       await writer.write(new TextEncoder().encode("init\n"))
-      
-      // Esperar más tiempo para estabilizar la conexión
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      // Enviar comando de prueba
-      console.log("📡 Enviando comando de prueba...")
+      await new Promise((r) => setTimeout(r, 1500))
       await writer.write(new TextEncoder().encode("status\n"))
 
-      setStatus("connected")
-      toast({ title: "Arduino conectado exitosamente ✅" })
-      
-      if (!autoConnect) {
-        setAutoConnect(true)
-        toast({ title: "Auto‑conexión activada para próximas sesiones" })
+      setConnectionStatus("connected")
+      toast({ title: "ESP32 conectado", description: "¡Listo!" })
+      return true
+    } catch (err: any) {
+      /* FIX 2  • tratar InvalidStateError como conexión válida */
+      if (err?.name === "InvalidStateError") {
+        console.warn("Puerto ya abierto, estableciendo refs…")
+        portRef.current = port
+        readerRef.current = port.readable!.getReader()
+        writerRef.current = port.writable!.getWriter()
+        setConnectionStatus("connected")
+        toast({ title: "ESP32 conectado", description: "Puerto ya estaba abierto" })
+        return true
       }
+      console.error("Error opening ESP32 port:", err)
+      setConnectionStatus("error")
+      return false
+    }
+  }, [toast])
+
+  /* ────────── Auto-reconexión ────────── */
+  const autoReconnect = useCallback(async (): Promise<boolean> => {
+    if (!isSerialAvailable) return false
+    const saved = loadPortInfo()
+    const ports = await navigator.serial.getPorts()
+    const match = ports.find((p) => {
+      if (!saved) return true
+      const info = p.getInfo()
+      return info.usbVendorId === saved.usbVendorId && info.usbProductId === saved.usbProductId
+    })
+    return match ? openPort(match) : false
+  }, [isSerialAvailable, openPort])
+
+  /* ────────── Intento de reconexión al montar ────────── */
+  useEffect(() => {
+    if (autoConnect && !connected && connectionStatus !== "connecting") {
+      autoReconnect().catch(console.error)
+    }
+  }, [autoConnect, connected, connectionStatus, autoReconnect])
+
+  /* ────────── Conectar (gesto de usuario) ────────── */
+  const conectarESP32 = useCallback(async (): Promise<boolean> => {
+    if (!isSerialAvailable) {
+      toast({ title: "Serial no disponible", variant: "destructive" })
+      return false
+    }
+    // FIX 3  • evitar duplicar intentos
+    if (connected) return true
+    if (connectionStatus === "connecting") return false
+
+    if (await autoReconnect()) return true
+
+    try {
+      const port = await navigator.serial.requestPort({ filters: ESP32_USB_FILTERS })
+      return openPort(port)
+    } catch (err) {
+      console.error("ESP32 requestPort cancelado:", err)
+      setConnectionStatus("disconnected")
+      return false
+    }
+  }, [isSerialAvailable, connected, connectionStatus, autoReconnect, openPort, toast])
+
+  /* ────────── Enviar comandos (sin cambios) ────────── */
+  const enviarComando = useCallback(async (cmd: string): Promise<boolean> => {
+    const writer = writerRef.current
+    if (!writer || !connected) {
+      toast({ title: "ESP32 desconectado", description: "Conecta primero", variant: "destructive" })
+      return false
+    }
+    try {
+      console.log("📤", cmd)
+      await writer.write(new TextEncoder().encode(cmd + "\n"))
+      setLastCommand(cmd)
+      if (/^(inicio:|intensidad:)/.test(cmd)) await new Promise((r) => setTimeout(r, 100))
       return true
     } catch (err) {
-      console.error("Error conectando Arduino:", err)
-      setStatus("error")
-      toast({ 
-        title: "Error de conexión", 
-        description: "No se pudo conectar al Arduino",
-        variant: "destructive" 
-      })
-      return false
-    }
-  }, [connected, autoConnect, isSerialAvailable, toast])
-
-  /* -------------------------------------------------- */
-  /* Util: enviar línea MEJORADO                       */
-  /* -------------------------------------------------- */
-  const sendLine = useCallback(async (cmd: string): Promise<boolean> => {
-    if (!writerRef.current || !connected) {
-      console.warn("❌ No se puede enviar comando: Arduino desconectado")
-      toast({ 
-        title: "Arduino desconectado", 
-        description: "Conecta el Arduino antes de enviar comandos",
-        variant: "destructive" 
-      })
-      return false
-    }
-    
-    try {
-      console.log("📤 Enviando comando:", cmd)
-      await writerRef.current.write(new TextEncoder().encode(cmd + "\n"))
-      setLast(cmd)
-      
-      // Pequeña pausa después de enviar comando crítico
-      if (cmd.includes("inicio:") || cmd.includes("intensidad:")) {
-        await new Promise(resolve => setTimeout(resolve, 100))
-      }
-      
-      return true
-    } catch (e) {
-      console.error("Error enviando comando:", e)
-      setStatus("error")
-      toast({ 
-        title: "Error de comunicación", 
-        description: "Fallo al enviar comando al Arduino",
-        variant: "destructive" 
-      })
+      console.error("Error sending command:", err)
+      setConnectionStatus("error")
+      toast({ title: "Comunicación fallida", variant: "destructive" })
       return false
     }
   }, [connected, toast])
 
-  /* -------------------------------------------------- */
-  /* Comandos de negocio - FORMATO CORREGIDO           */
-  /* -------------------------------------------------- */
-  const iniciarTerapia = useCallback(async (tipo: string, modo: string, minutos: number, intensidad: number): Promise<boolean> => {
-    // CAMBIO IMPORTANTE: Formato simplificado y consistente
-    const comando = `inicio:${modo},${intensidad},${minutos}`
-    console.log("🚀 Iniciando terapia:", { tipo, modo, minutos, intensidad, comando })
-    
-    const success = await sendLine(comando)
-    if (success) {
-      // Enviar comando adicional para activar luces inmediatamente
-      await new Promise(resolve => setTimeout(resolve, 200))
-      await sendLine(`luces:on`)
-      
-      toast({ 
-        title: "Terapia iniciada", 
-        description: `Modo: ${modo}, Intensidad: ${intensidad}%, Duración: ${minutos}min`
-      })
+  /* ────────── Funciones de negocio (sin cambios) ────────── */
+  const iniciarTerapia = useCallback(async (tipo: string, modo: string, minutos: number, intensidad: number) => {
+    const ok = await enviarComando(`inicio:${modo},${intensidad},${minutos}`)
+    if (ok) {
+      await new Promise((r) => setTimeout(r, 200))
+      await enviarComando("luces:on")
+      toast({ title: "Terapia iniciada", description: `${modo} ${intensidad}% ${minutos}min` })
     }
-    return success
-  }, [sendLine, toast])
+    return ok
+  }, [enviarComando, toast])
 
-  const cambiarIntensidad = useCallback(async (intensidad: number): Promise<boolean> => {
-    const intensidadLimitada = Math.max(0, Math.min(100, intensidad))
-    const comando = `intensidad:${intensidadLimitada}`
-    console.log("💡 Cambiando intensidad:", intensidadLimitada)
-    return await sendLine(comando)
-  }, [sendLine])
+  const cambiarIntensidad = useCallback(
+    (inten: number) => enviarComando(`intensidad:${Math.max(0, Math.min(100, inten))}`),
+    [enviarComando],
+  )
 
-  const detenerTerapia = useCallback(async (): Promise<boolean> => {
-    console.log("🛑 Deteniendo terapia")
-    const success = await sendLine("stop")
-    if (success) {
-      // Asegurar que las luces se apaguen
-      await new Promise(resolve => setTimeout(resolve, 100))
-      await sendLine("luces:off")
+  const detenerTerapia = useCallback(async () => {
+    const ok = await enviarComando("stop")
+    if (ok) {
+      await new Promise((r) => setTimeout(r, 100))
+      await enviarComando("luces:off")
       toast({ title: "Terapia detenida" })
     }
-    return success
-  }, [sendLine, toast])
-  
-  const completarTerapia = useCallback(async (): Promise<boolean> => {
-    console.log("✅ Completando terapia")
-    const success = await sendLine("completado")
-    if (success) {
-      // Apagar luces al completar
-      await new Promise(resolve => setTimeout(resolve, 100))
-      await sendLine("luces:off")
-      toast({ title: "Terapia completada exitosamente ✨" })
-    }
-    return success
-  }, [sendLine, toast])
+    return ok
+  }, [enviarComando, toast])
 
-  /* -------------------------------------------------- */
-  /* Manejo de desconexión                            */
-  /* -------------------------------------------------- */
-  const desconectarArduino = useCallback(async () => {
-    try {
-      if (readerRef.current) {
-        await readerRef.current.cancel()
-        readerRef.current = null
-      }
-      if (writerRef.current) {
-        await writerRef.current.close()
-        writerRef.current = null
-      }
-      if (portRef.current) {
-        await portRef.current.close()
-        portRef.current = null
-      }
-      setStatus("disconnected")
-      toast({ title: "Arduino desconectado" })
-    } catch (err) {
-      console.error("Error al desconectar:", err)
+  const completarTerapia = useCallback(async () => {
+    const ok = await enviarComando("completado")
+    if (ok) {
+      await new Promise((r) => setTimeout(r, 100))
+      await enviarComando("luces:off")
+      toast({ title: "Terapia completada" })
     }
+    return ok
+  }, [enviarComando, toast])
+
+  /* ────────── Desconexión y limpieza ────────── */
+  const desconectar = useCallback(async () => {
+    await readerRef.current?.cancel()
+    await writerRef.current?.close()
+    await portRef.current?.close()
+    readerRef.current = null
+    writerRef.current = null
+    portRef.current = null
+    setConnectionStatus("disconnected")
+    toast({ title: "ESP32 desconectado" })
   }, [toast])
 
-  /* -------------------------------------------------- */
-  /* Limpieza al salir                                  */
-  /* -------------------------------------------------- */
-  useEffect(() => {
-    return () => {
-      desconectarArduino()
-    }
-  }, [desconectarArduino])
+  useEffect(() => () => { desconectar() }, [desconectar])
 
-  /* -------------------------------------------------- */
-  /* Exponer contexto                                   */
-  /* -------------------------------------------------- */
+  /* ────────── Contexto ────────── */
   const ctx: Ctx = {
     connected,
     connectionStatus,
     isSerialAvailable,
     lastCommand,
-    conectarArduino,
-    enviarComando: sendLine,
+    conectarArduino: conectarESP32,
     iniciarTerapia,
     cambiarIntensidad,
     detenerTerapia,
     completarTerapia,
+    enviarComando,
     autoConnect,
     setAutoConnect,
   }
