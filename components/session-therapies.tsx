@@ -27,49 +27,109 @@ export interface Therapy {
   id: string
   name: string
   description: string
-  frequency: string          // música
+  frequency: string
   color: string
   icon: string
   category: string
   hasVideo?: boolean
-  /* campos de personalización */
-  lightMode?: string         // patrón de luz (nuevo)
+  /* personalización */
+  customizable?: boolean
+  lightMode?: string
   initialIntensity?: number
   sessionDuration?: "corto" | "mediano" | "largo"
 }
 
 interface Props {
   onTherapySelect(t: Therapy): void
-  selectedTherapy: Therapy | null
   onStartTherapy(t: Therapy): void
+  selectedTherapy: Therapy | null
 }
 
-/* ────────── Catálogo base ────────── */
+/* ────────── Catálogo de terapias ────────── */
 export const sessionTherapies: Therapy[] = [
-  { id: "general",      name: "General",       description: "Terapia general",  frequency: "general",      color: "#06b6d4", icon: "🔄", category: "session" },
-  { id: "cascada",      name: "Cascada",       description: "Patrón cascada",   frequency: "cascada",      color: "#3b82f6", icon: "💧", category: "session" },
-  { id: "pausado",      name: "Pausado",       description: "Patrón pausado",   frequency: "pausado",      color: "#8b5cf6", icon: "⏸️", category: "session" },
-  { id: "intermitente", name: "Intermitente",  description: "Patrón rápido",    frequency: "intermitente", color: "#f59e0b", icon: "⚡", category: "session" },
-  { id: "oceano-video", name: "Olas Oceánicas",description: "Video de olas",    frequency: "video_oceano", color: "#0ea5e9", icon: "🌊", category: "session", hasVideo: true },
+  // SOLO INICIAR
+  {
+    id: "estres",
+    name: "Estrés",
+    description: "Reducción de estrés",
+    frequency: "estres",
+    color: "#14b8a6",
+    icon: "💆",
+    category: "session",
+    customizable: false,
+  },
+
+  // CON PERSONALIZAR
+  {
+    id: "estres-custom",
+    name: "Estrés – Personalizado",
+    description: "Versión avanzada",
+    frequency: "estres",
+    color: "#0d9488",
+    icon: "🎚️",
+    category: "session",
+    customizable: true,
+  },
+  {
+    id: "autismo",
+    name: "Autismo",
+    description: "Apoyo neurosensorial",
+    frequency: "autismo",
+    color: "#818cf8",
+    icon: "🧩",
+    category: "session",
+    customizable: true,
+  },
+  {
+    id: "down",
+    name: "Down",
+    description: "Ayuda cognitiva",
+    frequency: "down",
+    color: "#fbbf24",
+    icon: "🌼",
+    category: "session",
+    customizable: true,
+  },
+  {
+    id: "duelo",
+    name: "Duelo",
+    description: "Apoyo emocional",
+    frequency: "duelo",
+    color: "#ef4444",
+    icon: "🕯️",
+    category: "session",
+    customizable: true,
+  },
+  {
+    id: "alcoholismo",
+    name: "Alcoholismo",
+    description: "Control de adicciones",
+    frequency: "alcohol",
+    color: "#f97316",
+    icon: "🍺",
+    category: "session",
+    customizable: true,
+  },
 ]
 
+/* ────────── Modos de luz disponibles ────────── */
 const modes = [
-  { id: "general",      name: "Patrón Complejo", description: "11 patrones variables", icon: "🔄", color: "#06b6d4" },
-  { id: "intermitente", name: "Intermitente",    description: "Cambio 500 ms",         icon: "⚡", color: "#f59e0b" },
-  { id: "pausado",      name: "Pausado",         description: "Cambio 1.5 s",          icon: "⏸️", color: "#8b5cf6" },
-  { id: "cascada",      name: "Cascada",         description: "Efecto cascada",        icon: "🌊", color: "#10b981" },
-  { id: "red",          name: "Solo Rojo",       description: "Rojo sólido",           icon: "🔴", color: "#ef4444" },
-  { id: "green",        name: "Solo Verde",      description: "Verde sólido",          icon: "🟢", color: "#22c55e" },
-  { id: "blue",         name: "Solo Azul",       description: "Azul sólido",           icon: "🔵", color: "#3b82f6" },
+  { id: "general",      name: "Patrón Complejo", icon: "🔄", color: "#06b6d4", description: "11 patrones variables" },
+  { id: "intermitente", name: "Intermitente",    icon: "⚡",  color: "#f59e0b", description: "Cambio 500 ms" },
+  { id: "pausado",      name: "Pausado",         icon: "⏸️", color: "#8b5cf6", description: "Cambio 1.5 s" },
+  { id: "cascada",      name: "Cascada",         icon: "🌊",  color: "#10b981", description: "Efecto cascada" },
+  { id: "red",          name: "Solo Rojo",       icon: "🔴", color: "#ef4444", description: "Rojo sólido" },
+  { id: "green",        name: "Solo Verde",      icon: "🟢", color: "#22c55e", description: "Verde sólido" },
+  { id: "blue",         name: "Solo Azul",       icon: "🔵", color: "#3b82f6", description: "Azul sólido" },
 ]
 
 /* ══════════ Componente ══════════ */
 export default function SessionTherapies({
   onTherapySelect,
-  selectedTherapy,
   onStartTherapy,
+  selectedTherapy,
 }: Props) {
-  /* estado diálogo */
+  /* diálogo de personalización */
   const [dlg, setDlg] = useState<{ open: boolean; therapy: Therapy | null }>({
     open: false,
     therapy: null,
@@ -85,24 +145,26 @@ export default function SessionTherapies({
     setDur(t.sessionDuration ?? "corto")
   }
 
-  /* Guardar cambios Y saltar a sesión */
-  const save = () => {
+  /* aplicar cambios + iniciar sesión */
+  const saveAndStart = () => {
     if (!dlg.therapy) return
     const m = modes.find((x) => x.id === modeId)!
     const updated: Therapy = {
       ...dlg.therapy,
-      lightMode: m.id,            // ← sólo cambiamos el patrón de luz
-      color: m.color,             // opcional: cambia el color de UI
+      lightMode: m.id,
+      color: m.color,
       icon: m.icon,
       description: m.description,
       initialIntensity: intensity,
       sessionDuration: dur,
+      customizable: true,
     }
     onTherapySelect(updated)
     setDlg({ open: false, therapy: null })
-    onStartTherapy(updated)       // 🚀  cambiamos a la pantalla de sesión
+    onStartTherapy(updated)
   }
 
+  /* combina estado seleccionado para UI */
   const withState = (t: Therapy) =>
     selectedTherapy?.id === t.id ? selectedTherapy : t
 
@@ -110,16 +172,19 @@ export default function SessionTherapies({
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       {sessionTherapies.map((t) => {
         const C = withState(t)
+        const selected = selectedTherapy?.id === C.id
+
         return (
           <Card
-            key={t.id}
+            key={C.id}
             onClick={() => onTherapySelect(C)}
             className={`bg-gray-800 border-gray-700 hover:border-gray-600 cursor-pointer transition-all ${
-              selectedTherapy?.id === t.id ? "ring-2 ring-cyan-500 border-cyan-500" : ""
+              selected ? "ring-2 ring-cyan-500 border-cyan-500" : ""
             }`}
           >
             <CardContent className="p-4">
               <div className="flex flex-col items-center text-center space-y-3">
+                {/* icono redondo */}
                 <div
                   className="w-16 h-16 rounded-full flex items-center justify-center text-2xl text-white"
                   style={{ backgroundColor: C.color }}
@@ -129,24 +194,19 @@ export default function SessionTherapies({
 
                 <h3 className="text-white font-semibold">{C.name}</h3>
 
-                <div className="flex items-center gap-1">
-                  <Badge
-                    className="text-xs"
-                    style={{
-                      backgroundColor: `${C.color}20`,
-                      color: C.color,
-                      border: `1px solid ${C.color}40`,
-                    }}
-                  >
-                    {C.lightMode ?? C.frequency}
-                  </Badge>
-                  {C.hasVideo && (
-                    <Badge className="bg-red-900/40 text-red-400 border-red-600/30 text-[10px]">
-                      VIDEO
-                    </Badge>
-                  )}
-                </div>
+                {/* badge modo actual */}
+                <Badge
+                  className="text-xs"
+                  style={{
+                    backgroundColor: `${C.color}20`,
+                    color: C.color,
+                    border: `1px solid ${C.color}40`,
+                  }}
+                >
+                  {C.lightMode ?? C.frequency}
+                </Badge>
 
+                {/* botones */}
                 <div className="flex gap-2 w-full">
                   <Button
                     size="sm"
@@ -159,7 +219,8 @@ export default function SessionTherapies({
                     <Play className="h-3 w-3 mr-1" /> Iniciar
                   </Button>
 
-                  {!C.hasVideo && (
+                  {/* Personalizar solo si está habilitado */}
+                  {C.customizable && (
                     <Dialog
                       open={dlg.open && dlg.therapy?.id === C.id}
                       onOpenChange={(o) =>
@@ -181,13 +242,15 @@ export default function SessionTherapies({
                         </Button>
                       </DialogTrigger>
 
-                      {/* ----- Diálogo ----- */}
+                      {/* diálogo */}
                       <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-md">
                         <DialogHeader>
-                          <DialogTitle>Personalizar {C.name}</DialogTitle>
+                          <DialogTitle>
+                            Personalizar {C.name}
+                          </DialogTitle>
                         </DialogHeader>
 
-                        {/* Modo de luz */}
+                        {/* modo de luz */}
                         <Label className="text-sm font-medium">
                           Modo de iluminación
                         </Label>
@@ -212,7 +275,7 @@ export default function SessionTherapies({
                           </SelectContent>
                         </Select>
 
-                        {/* Intensidad */}
+                        {/* intensidad */}
                         <Label className="text-sm font-medium mt-4 inline-block">
                           Intensidad inicial
                         </Label>
@@ -235,7 +298,7 @@ export default function SessionTherapies({
                           />
                         </div>
 
-                        {/* Duración */}
+                        {/* duración */}
                         <Label className="text-sm font-medium mt-4 inline-block">
                           Duración de la sesión
                         </Label>
@@ -259,8 +322,8 @@ export default function SessionTherapies({
                           </SelectContent>
                         </Select>
 
-                        {/* Resumen */}
-                        <div className="mt-4 p-3 rounded bg-gray-700/50 border border-gray-600 space-y-1 text-xs">
+                        {/* resumen */}
+                        <div className="mt-4 p-3 rounded bg-gray-700/50 border border-gray-600 text-xs space-y-1">
                           <span className="font-medium">
                             {modes.find((m) => m.id === modeId)?.name}
                           </span>
@@ -269,20 +332,23 @@ export default function SessionTherapies({
                           </p>
                         </div>
 
-                        {/* Acciones */}
+                        {/* acciones */}
                         <div className="flex justify-end gap-2 mt-4">
                           <Button
                             variant="outline"
                             className="bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600"
-                            onClick={() => setDlg({ open: false, therapy: null })}
+                            onClick={() =>
+                              setDlg({ open: false, therapy: null })
+                            }
                           >
                             Cancelar
                           </Button>
                           <Button
-                            onClick={save}
+                            onClick={saveAndStart}
                             className="bg-orange-600 text-white"
                           >
-                            Aplicar
+                            Aplicar &nbsp;{" "}
+                            <Play className="h-3 w-3 inline" />
                           </Button>
                         </div>
                       </DialogContent>
