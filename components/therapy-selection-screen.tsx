@@ -2,82 +2,47 @@
 
 import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import SessionTherapies, {
-  sessionTherapies,
-  type Therapy,
-} from "@/components/session-therapies"
+import SessionTherapies, { sessionTherapies, type Therapy } from "@/components/session-therapies"
 import ColorTherapies from "@/components/color-therapies"
-import MoreTherapies from "@/components/more-therapies"
+import MoreTherapies  from "@/components/more-therapies"
 
 interface Props {
-  onStartTherapy: (
-    therapy: Therapy,
-    dur: "corto" | "mediano" | "largo",
-  ) => void
+  onStartTherapy: (t: Therapy, d: "corto" | "mediano" | "largo") => void
 }
 
+/** Pantalla de selección sin selector global de duración.
+ *  La duración se toma de `therapy.sessionDuration` (si existe) o "corto". */
 export default function TherapySelectionScreen({ onStartTherapy }: Props) {
-  const defaultTherapy =
-    sessionTherapies.find((t) => t.id === "general") || sessionTherapies[0]
+  /* terapia por defecto */
+  const defaultTherapy = sessionTherapies[0]
+  const [selectedTherapy, setSelectedTherapy] = useState<Therapy>(defaultTherapy)
 
-  const [selectedTherapy, setSelectedTherapy] =
-    useState<Therapy>(defaultTherapy)
-  const [selectedDuration, setSelectedDuration] = useState<
-    "corto" | "mediano" | "largo"
-  >("corto")
+  /* sincroniza terapia seleccionada */
+  const handleTherapySelect = (t: Therapy) => setSelectedTherapy(t)
 
-  const handleStart = (therapy: Therapy) =>
-    onStartTherapy(therapy, selectedDuration)
+  /* iniciar usando la duración propia de la terapia */
+  const handleStart = (t: Therapy) => {
+    const dur = t.sessionDuration ?? "corto"
+    onStartTherapy(t, dur)
+  }
 
   return (
     <div className="min-h-screen p-6">
       {/* encabezado */}
       <header className="text-center mb-8 space-y-4">
         <div className="flex items-center justify-center gap-4">
-          <img
-            src="/images/cabina-aq-logo.png"
-            alt="Cabina AQ"
-            className="h-16 w-16"
-          />
+          <img src="/images/cabina-aq-logo.png" alt="Cabina AQ" className="h-17 w-16 rounded-md" />
           <div>
-            <h1 className="text-4xl font-bold text-white">
-              Simulador de Cabina AQ
-            </h1>
-            <p className="text-gray-400">
-              Sistema avanzado de terapia de luz y frecuencias
-            </p>
+            <h1 className="text-4xl font-bold text-white">Cabina AQ</h1>
+            <p className="text-gray-400">Sistema avanzado de terapia de luz y frecuencias</p>
           </div>
-        </div>
-
-        {/* selector duración */}
-        <div className="inline-flex items-center gap-2">
-          <span className="text-sm text-gray-300">Duración:</span>
-          <Select
-            value={selectedDuration}
-            onValueChange={(v) =>
-              setSelectedDuration(v as "corto" | "mediano" | "largo")
-            }
-          >
-            <SelectTrigger className="w-36 bg-gray-700 border-gray-600 text-white h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-gray-700 border-gray-600 text-white">
-              <SelectItem value="corto">Corto (4&nbsp;min)</SelectItem>
-              <SelectItem value="mediano">Mediano (15&nbsp;min)</SelectItem>
-              <SelectItem value="largo">Largo (20&nbsp;min)</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center justify-center bg-white rounded-full w-24 h-24">
+            <img src="/images/logo-aq-cabina.jpeg" alt="Cabina AQ" className="h-14 w-16 rounded-md" />
+          </div>
         </div>
       </header>
 
-      {/* pestañas */}
+      {/* tabs */}
       <div className="max-w-7xl mx-auto">
         <Tabs defaultValue="session">
           <TabsList className="grid grid-cols-3 bg-gray-800 border-gray-700">
@@ -89,7 +54,7 @@ export default function TherapySelectionScreen({ onStartTherapy }: Props) {
           <TabsContent value="session" className="mt-6">
             <SessionTherapies
               selectedTherapy={selectedTherapy}
-              onTherapySelect={setSelectedTherapy}
+              onTherapySelect={handleTherapySelect}
               onStartTherapy={handleStart}
             />
           </TabsContent>
@@ -97,7 +62,7 @@ export default function TherapySelectionScreen({ onStartTherapy }: Props) {
           <TabsContent value="color" className="mt-6">
             <ColorTherapies
               selectedTherapy={selectedTherapy}
-              onTherapySelect={setSelectedTherapy}
+              onTherapySelect={handleTherapySelect}
               onStartTherapy={handleStart}
             />
           </TabsContent>
@@ -105,7 +70,7 @@ export default function TherapySelectionScreen({ onStartTherapy }: Props) {
           <TabsContent value="more" className="mt-6">
             <MoreTherapies
               selectedTherapy={selectedTherapy}
-              onTherapySelect={setSelectedTherapy}
+              onTherapySelect={handleTherapySelect}
               onStartTherapy={handleStart}
             />
           </TabsContent>

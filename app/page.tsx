@@ -6,19 +6,15 @@ import ArduinoServiceProvider, { useArduinoService } from "@/components/arduino-
 import { CustomTherapyProvider } from "@/components/custom-therapy-provider"
 import { AudioCacheProvider, useAudioCache } from "@/components/audio-cache-provider"
 import TherapySelectionScreen from "@/components/therapy-selection-screen"
-// Define the Therapy type locally
-export type Therapy = {
-  color: string;
-  name: string;
-}
 import SessionControlScreen from "@/components/session-control-screen"
 import SimpleExternalWindowManager from "@/components/simple-external-window-manager"
 import LoadingScreen from "@/components/loading-screen"
+import PermissionsModal from "@/components/permissions-modal"
 
-/* ────────── Estados de navegación ────────── */
+/* ────────── rutas ────────── */
 type Screen = "loading" | "selection" | "session"
 
-/* ══════════ ENTRY ══════════ */
+/* ══════════ ROOT ══════════ */
 export default function Home() {
   return (
     <AudioCacheProvider>
@@ -33,69 +29,86 @@ export default function Home() {
 
 /* ══════════ APP PRINCIPAL ══════════ */
 function CabinaApp() {
-  /* Estado UI */
+  /* ---------------- state ---------------- */
   const [screen, setScreen] = useState<Screen>("loading")
-  const [selectedTherapy, setSelectedTherapy] = useState<Therapy | null>(null)
+  const [therapy, setTherapy] = useState<Therapy | null>(null)
   const [duration, setDuration] = useState<"corto" | "mediano" | "largo">("corto")
   const [light, setLight] = useState(80)
+  const [needsPerms, setNeedsPerms] = useState<boolean>(() => {
+    return !localStorage.getItem("cabina-perms-ok")  // primera vez
+  })
 
-  /* Servicios */
-  const {
-    isPreloading,
-    preloadProgress,
-    preloadAudio,
-  } = useAudioCache()
+  /* ---------------- servicios ---------------- */
+  const { isPreloading, preloadProgress, preloadAudio } = useAudioCache()
   const { connectionStatus, setAutoConnect } = useArduinoService()
   const arduinoReady = connectionStatus === "connected"
 
-  /* Bootstrap: empieza precarga y autoconexión */
+  /* ---------------- splash timer ---------------- */
+  const SPLASH_TIMEOUT = 9000 // 9 s máximo en loading
+  const [bootStarted] = useState(() => Date.now())
+
+  /* start tasks once */
   useEffect(() => {
     preloadAudio()
     setAutoConnect(true)
   }, [preloadAudio, setAutoConnect])
 
-  /* Cuando audio terminó de precargar (éxito o fallo) y Arduino listo → pantalla selección */
+  /* decide cuándo salir del loading */
   useEffect(() => {
-    if (!isPreloading && arduinoReady) {
-      setScreen("selection")
-    }
-  }, [isPreloading, arduinoReady])
+    const id = setInterval(() => {
+      const elapsed = Date.now() - bootStarted
+      const audioDone = !isPreloading
+      const timeUp = elapsed > SPLASH_TIMEOUT
+      if ((audioDone && arduinoReady) || timeUp) {
+        if (needsPerms) {
+          // mostrará modal después del splash
+          setScreen("selection")
+        } else {
+          setScreen("selection")
+        }
+        clearInterval(id)
+      }
+    }, 300)
+    return () => clearInterval(id)
+  }, [isPreloading, arduinoReady, bootStarted])
 
-  /* Handlers */
-  const handleStartTherapy = (therapy: Therapy, dur: "corto" | "mediano" | "largo") => {
-    setSelectedTherapy(therapy)
-    setDuration(dur)
+  /* ---------------- handlers ---------------- */
+  const handleStartTherapy = (t: any, d: "corto" | "mediano" | "largo") => {
+    setTherapy(t)
+    setDuration(d)
     setScreen("session")
   }
-
   const handleEndSession = () => {
-    setSelectedTherapy(null)
+    setTherapy(null)
     setScreen("selection")
   }
 
   const minutes = { corto: 4, mediano: 15, largo: 20 }[duration]
 
-  /* Splash */
+  /* ---------------- render ---------------- */
   if (screen === "loading") {
-    return (
-      <LoadingScreen
-        progress={preloadProgress}
-        arduinoReady={arduinoReady}
-        totalDurationMs={7000}
-      />
-    )
+    return <LoadingScreen progress={preloadProgress} totalDurationMs={SPLASH_TIMEOUT} />
   }
 
-  /* Main */
   return (
     <>
       <main className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+      {/* Permisos primera vez */}
+      {needsPerms && (
+        <PermissionsModal
+          open={true}
+          onDone={() => {
+            localStorage.setItem("cabina-perms-ok", "1")
+            setNeedsPerms(false)
+          }}
+        />
+      )}
         {screen === "selection" ? (
           <TherapySelectionScreen onStartTherapy={handleStartTherapy} />
         ) : (
-          selectedTherapy && (
+          therapy && (
             <SessionControlScreen
-              therapy={selectedTherapy}
+              therapy={therapy}
               duration={duration}
               lightIntensity={light}
               onLightIntensityChange={setLight}
@@ -111,10 +124,10 @@ function CabinaApp() {
         doorOpen={screen !== "loading"}
         sessionActive={screen === "session"}
         sessionType={screen === "session" ? "therapy" : "standby"}
-        therapyColor={selectedTherapy?.color || "#0891b2"}
+        therapyColor={therapy?.color || "#0891b2"}
         sessionDuration={minutes}
         lightIntensity={light}
-        selectedTherapy={selectedTherapy}
+        selectedTherapy={therapy}
       />
     </>
   )
