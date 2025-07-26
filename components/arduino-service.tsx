@@ -11,7 +11,7 @@ import React, {
 } from "react"
 import { useToast } from "@/hooks/use-toast"
 
-/* ────────── Tipos ────────── */
+/* ───────── Tipos ───────── */
 type Status = "disconnected" | "connecting" | "connected" | "error"
 interface PortInfo { usbVendorId?: number; usbProductId?: number }
 
@@ -37,7 +37,7 @@ export const useArduinoService = (): Ctx => {
   return ctx
 }
 
-/* ────────── Constantes ────────── */
+/* ───────── Constantes ───────── */
 const ESP32_USB_FILTERS: SerialPortFilter[] = [
   { usbVendorId: 0x10c4, usbProductId: 0xea60 },
   { usbVendorId: 0x0403, usbProductId: 0x6015 },
@@ -45,7 +45,17 @@ const ESP32_USB_FILTERS: SerialPortFilter[] = [
 ]
 const BAUD_RATE = 115200
 
-/* ══════════ Provider ══════════ */
+const safeLocalStorage = {
+  getItem: (key: string) => typeof window !== "undefined" ? localStorage.getItem(key) : null,
+  setItem: (key: string, val: string) => {
+    if (typeof window !== "undefined") localStorage.setItem(key, val)
+  },
+  removeItem: (key: string) => {
+    if (typeof window !== "undefined") localStorage.removeItem(key)
+  },
+}
+
+/* ═════════ Provider ═════════ */
 export default function ArduinoServiceProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast()
   const [connectionStatus, setConnectionStatus] = useState<Status>("disconnected")
@@ -59,22 +69,21 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
   const isSerialAvailable = typeof navigator !== "undefined" && "serial" in navigator
   const connected = connectionStatus === "connected"
 
-  /* ────────── Persistencia de puerto ────────── */
+  /* ───────── Persistencia de puerto ───────── */
   const savePortInfo = (info: PortInfo) => {
-    try { localStorage.setItem("esp32-port-info", JSON.stringify(info)) } catch {}
+    safeLocalStorage.setItem("esp32-port-info", JSON.stringify(info))
   }
   const loadPortInfo = (): PortInfo | null => {
+    const raw = safeLocalStorage.getItem("esp32-port-info")
     try {
-      const raw = localStorage.getItem("esp32-port-info")
       return raw ? JSON.parse(raw) : null
     } catch {
       return null
     }
   }
 
-  /* ────────── Abrir puerto ────────── */
+  /* ───────── Abrir puerto ───────── */
   const openPort = useCallback(async (port: SerialPort): Promise<boolean> => {
-    // FIX 1  • evitar abrir si ya está abierto
     if (port.readable && port.writable) {
       portRef.current = port
       readerRef.current = port.readable.getReader()
@@ -95,7 +104,6 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
       writerRef.current = writer
       savePortInfo(port.getInfo())
 
-      /* listener debug */
       ;(async () => {
         try {
           while (true) {
@@ -120,7 +128,6 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
       toast({ title: "Sistema Cuántico conectado", description: "¡Listo!" })
       return true
     } catch (err: any) {
-      /* FIX 2  • tratar InvalidStateError como conexión válida */
       if (err?.name === "InvalidStateError") {
         console.warn("Puerto ya abierto, estableciendo refs…")
         portRef.current = port
@@ -136,7 +143,6 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
     }
   }, [toast])
 
-  /* ────────── Auto-reconexión ────────── */
   const autoReconnect = useCallback(async (): Promise<boolean> => {
     if (!isSerialAvailable) return false
     const saved = loadPortInfo()
@@ -149,20 +155,17 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
     return match ? openPort(match) : false
   }, [isSerialAvailable, openPort])
 
-  /* ────────── Intento de reconexión al montar ────────── */
   useEffect(() => {
     if (autoConnect && !connected && connectionStatus !== "connecting") {
       autoReconnect().catch(console.error)
     }
   }, [autoConnect, connected, connectionStatus, autoReconnect])
 
-  /* ────────── Conectar (gesto de usuario) ────────── */
   const conectarESP32 = useCallback(async (): Promise<boolean> => {
     if (!isSerialAvailable) {
       toast({ title: "Serial no disponible", variant: "destructive" })
       return false
     }
-    // FIX 3  • evitar duplicar intentos
     if (connected) return true
     if (connectionStatus === "connecting") return false
 
@@ -178,7 +181,6 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
     }
   }, [isSerialAvailable, connected, connectionStatus, autoReconnect, openPort, toast])
 
-  /* ────────── Enviar comandos (sin cambios) ────────── */
   const enviarComando = useCallback(async (cmd: string): Promise<boolean> => {
     const writer = writerRef.current
     if (!writer || !connected) {
@@ -199,7 +201,6 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
     }
   }, [connected, toast])
 
-  /* ────────── Funciones de negocio (sin cambios) ────────── */
   const iniciarTerapia = useCallback(async (tipo: string, modo: string, minutos: number, intensidad: number) => {
     const ok = await enviarComando(`inicio:${modo},${intensidad},${minutos}`)
     if (ok) {
@@ -210,10 +211,7 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
     return ok
   }, [enviarComando, toast])
 
-  const cambiarIntensidad = useCallback(
-    (inten: number) => enviarComando(`intensidad:${Math.max(0, Math.min(100, inten))}`),
-    [enviarComando],
-  )
+  const cambiarIntensidad = useCallback((inten: number) => enviarComando(`intensidad:${Math.max(0, Math.min(100, inten))}`), [enviarComando])
 
   const detenerTerapia = useCallback(async () => {
     const ok = await enviarComando("stop")
@@ -235,7 +233,6 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
     return ok
   }, [enviarComando, toast])
 
-  /* ────────── Desconexión y limpieza ────────── */
   const desconectar = useCallback(async () => {
     await readerRef.current?.cancel()
     await writerRef.current?.close()
@@ -249,7 +246,6 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
 
   useEffect(() => () => { desconectar() }, [desconectar])
 
-  /* ────────── Contexto ────────── */
   const ctx: Ctx = {
     connected,
     connectionStatus,

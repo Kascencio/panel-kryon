@@ -8,6 +8,7 @@ import { AudioCacheProvider, useAudioCache } from "@/components/audio-cache-prov
 import TherapySelectionScreen from "@/components/therapy-selection-screen"
 import SessionControlScreen from "@/components/session-control-screen"
 import SimpleExternalWindowManager from "@/components/simple-external-window-manager"
+import type { Therapy } from "@/components/session-therapies"
 import LoadingScreen from "@/components/loading-screen"
 import PermissionsModal from "@/components/permissions-modal"
 
@@ -34,9 +35,7 @@ function CabinaApp() {
   const [therapy, setTherapy] = useState<Therapy | null>(null)
   const [duration, setDuration] = useState<"corto" | "mediano" | "largo">("corto")
   const [light, setLight] = useState(80)
-  const [needsPerms, setNeedsPerms] = useState<boolean>(() => {
-    return !localStorage.getItem("cabina-perms-ok")  // primera vez
-  })
+  const [needsPerms, setNeedsPerms] = useState<boolean>(true) // default to true until we check localStorage
 
   /* ---------------- servicios ---------------- */
   const { isPreloading, preloadProgress, preloadAudio } = useAudioCache()
@@ -46,6 +45,15 @@ function CabinaApp() {
   /* ---------------- splash timer ---------------- */
   const SPLASH_TIMEOUT = 9000 // 9 s máximo en loading
   const [bootStarted] = useState(() => Date.now())
+
+  /* check localStorage on client side */
+  useEffect(() => {
+    // Only run on client side
+    if (typeof window !== 'undefined') {
+      const hasPerms = localStorage.getItem("cabina-perms-ok")
+      setNeedsPerms(!hasPerms)
+    }
+  }, [])
 
   /* start tasks once */
   useEffect(() => {
@@ -73,7 +81,7 @@ function CabinaApp() {
   }, [isPreloading, arduinoReady, bootStarted])
 
   /* ---------------- handlers ---------------- */
-  const handleStartTherapy = (t: any, d: "corto" | "mediano" | "largo") => {
+  const handleStartTherapy = (t: Therapy, d: "corto" | "mediano" | "largo") => {
     setTherapy(t)
     setDuration(d)
     setScreen("session")
@@ -98,7 +106,9 @@ function CabinaApp() {
         <PermissionsModal
           open={true}
           onDone={() => {
-            localStorage.setItem("cabina-perms-ok", "1")
+            if (typeof window !== 'undefined') {
+              localStorage.setItem("cabina-perms-ok", "1")
+            }
             setNeedsPerms(false)
           }}
         />
