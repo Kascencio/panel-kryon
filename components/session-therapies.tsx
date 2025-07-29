@@ -17,11 +17,12 @@ export interface Therapy {
   id: string
   name: string
   description: string
-  /** Aquí se guarda el frequency que coincide con los audios */
-  frequency: "general" | "pausado" | "cascada" | "red" | "green"
+  /** Aquí se guarda el frequency que coincide con los audios  y/o con los vídeos */
+  frequency: "general" | "pausado" | "cascada" | "red" | "green" | "oceano"
   color: string
   icon: string
   category: string
+  /**  Cuando es true se intenta cargar /videos/<frequency>-<dur>.mp4  */
   hasVideo?: boolean
 
   /* personalización */
@@ -100,6 +101,19 @@ export const sessionTherapies: Therapy[] = [
     icon: "🍺",
     category: "session",
     customizable: true,
+  },
+  /* ─────── NUEVA TERAPIA DE VIDEO (ejemplo) ─────── */
+  {
+    id: "oceano-video",
+    name: "Olas Oceánicas",
+    description: "Video de olas relajantes",
+    frequency: "oceano",         // buscará /videos/oceano-<dur>.mp4
+    color: "#0ea5e9",
+    icon: "🌊",
+    category: "session",
+    hasVideo: true,
+    customizable: false,
+    sessionDuration: "corto",
   },
 ]
 
@@ -194,6 +208,11 @@ export default function SessionTherapies({
                 >
                   {C.lightMode ?? C.frequency}
                 </Badge>
+                {C.hasVideo && (
+                  <Badge className="bg-red-900/40 text-red-400 border-red-600/30 text-[10px] mt-1">
+                    VIDEO
+                  </Badge>
+                )}
 
                 {/* botones */}
                 <div className="flex gap-2 w-full">
@@ -297,9 +316,7 @@ export default function SessionTherapies({
                           </SelectTrigger>
                           <SelectContent className="bg-gray-700 border-gray-600">
                             <SelectItem value="corto">Corto (4 min)</SelectItem>
-                            <SelectItem value="mediano">
-                              Mediano (15 min)
-                            </SelectItem>
+                            <SelectItem value="mediano">Mediano (15 min)</SelectItem>
                             <SelectItem value="largo">Largo (20 min)</SelectItem>
                           </SelectContent>
                         </Select>
@@ -318,9 +335,7 @@ export default function SessionTherapies({
                           <Button
                             variant="outline"
                             className="bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600"
-                            onClick={() =>
-                              setDlg({ open: false, therapy: null })
-                            }
+                            onClick={() => setDlg({ open: false, therapy: null })}
                           >
                             Cancelar
                           </Button>

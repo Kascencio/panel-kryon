@@ -1,82 +1,101 @@
-// ExternalScreen.tsx – pantalla remota a pantalla completa
 "use client"
 
 import { useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Wifi, WifiOff } from "lucide-react"
+
 import { useSessionBridge } from "@/hooks/useSessionBridge"
 
 /* ------------------------------------------------------------------
  * Helpers
  * ----------------------------------------------------------------*/
-const fmt = (s: number) => {
+const fmtTime = (s: number) => {
   const m = Math.floor(s / 60)
   const sec = Math.floor(s % 60)
   return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`
 }
 
 /* ------------------------------------------------------------------
- * Componente
+ * Pantalla externa de sesión (pop‑up pantalla completa)
  * ----------------------------------------------------------------*/
 export default function ExternalScreen() {
-  /* ────────── id & datos desde query ────────── */
-  const params = useSearchParams()
-  const windowId = params.get("id")
-  const windowName = params.get("name") ?? "Ventana Externa"
+  /* ────────── query params ────────── */
+  const params           = useSearchParams()
+  const windowId  = params.get("id")      // id único de la ventana
+  const windowName= params.get("name") ?? "Ventana Externa"
 
-  /* ────────── bridge con la app principal ────────── */
+  /* ────────── puente con app principal ────────── */
   const { sessionData, connected } = useSessionBridge(windowId)
 
-  /* ────────── video refs / estado interno ────────── */
-  const videoRef = useRef<HTMLVideoElement>(null)
+  /* ────────── refs / estado video ────────── */
+  const videoRef            = useRef<HTMLVideoElement>(null)
   const [videoLoaded, setVideoLoaded] = useState(false)
-  const [current, setCurrent] = useState(0)
-  const [duration, setDuration] = useState(0)
-  const [error, setError] = useState<string | null>(null)
+  const [current, setCurrent]         = useState(0)
+  const [duration, setDuration]       = useState(0)
+  const [error, setError]             = useState<string | null>(null)
 
   /* ------------------------------------------------------------------
-   * Cargar / reproducir video sólo cuando la sesión está activa
+   * Carga de vídeo
+   *  ‑ Se asigna src cuando la terapia cambia
    * ----------------------------------------------------------------*/
   useEffect(() => {
     const v = videoRef.current
     if (!v) return
 
-    // si NO hay terapia con video o la sesión no está activa ⇒ pausa
-    if (!sessionData.sessionActive || !sessionData.selectedTherapy?.hasVideo) {
+    /* sin terapia de vídeo o sin sesión → pausa y limpia */
+    if (!sessionData.selectedTherapy?.hasVideo) {
       v.pause()
       return
     }
 
-    // Construir src cada vez que cambie terapia o duración
-    const src = `/videos/${sessionData.selectedTherapy.frequency || "general"}-${sessionData.sessionDuration}min.mp4`
+    // construimos la ruta cada vez que cambian terapia o duración
+    const suf = `${sessionData.sessionDuration}min` // 4min | 15min | 20min
+    const base = sessionData.selectedTherapy.frequency || "general"
+    const src = `/videos/${base}-${suf}.mp4`
 
-    if (!videoLoaded) {
-      v.src = src
-      v.load()
-    }
+    // si es el mismo src no recargamos
+    if (v.dataset.src === src) return
 
-    const handleLoaded = () => {
+    // flag para evitar listeners duplicados
+    setVideoLoaded(false)
+    setError(null)
+
+    const onLoaded = () => {
       setVideoLoaded(true)
       setDuration(v.duration)
-      v.play().catch((e) => {
-        console.warn("autoplay bloqueado", e)
-      })
+      /* ✨  NO reproducimos aquí. Esperamos a sessionActive */
     }
-    const handleTime = () => setCurrent(v.currentTime)
-    const handleError = () => {
-      setError(`No se pudo cargar el archivo ${src}`)
-    }
+    const onTime = () => setCurrent(v.currentTime)
+    const onErr  = () => setError(`No se pudo cargar el archivo ${src}`)
 
-    v.addEventListener("loadedmetadata", handleLoaded)
-    v.addEventListener("timeupdate", handleTime)
-    v.addEventListener("error", handleError)
+    v.src = src
+    v.dataset.src = src // guardamos para comparar
+    v.load()
+
+    v.addEventListener("loadedmetadata", onLoaded, { once: true })
+    v.addEventListener("timeupdate", onTime)
+    v.addEventListener("error", onErr, { once: true })
 
     return () => {
-      v.removeEventListener("loadedmetadata", handleLoaded)
-      v.removeEventListener("timeupdate", handleTime)
-      v.removeEventListener("error", handleError)
+      v.removeEventListener("timeupdate", onTime)
     }
-  }, [sessionData, videoLoaded])
+  }, [sessionData.selectedTherapy, sessionData.sessionDuration])
+
+  /* ------------------------------------------------------------------
+   * Sincronizar reproducción con el estado global de la sesión       
+   * ----------------------------------------------------------------*/
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !videoLoaded) return
+
+    if (sessionData.sessionActive) {
+      // reiniciamos el tiempo para asegurarnos de empezar desde 0
+      v.currentTime = 0
+      v.play().catch((e) => console.warn("Autoplay bloqueado:", e))
+    } else {
+      v.pause()
+    }
+  }, [sessionData.sessionActive, videoLoaded])
 
   /* ------------------------------------------------------------------
    * UI
@@ -85,7 +104,7 @@ export default function ExternalScreen() {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden" style={{ background: bg }}>
-      {/* VIDEO a pantalla completa */}
+      {/* Vídeo a pantalla completa (solo si la terapia tiene vídeo) */}
       {sessionData.selectedTherapy?.hasVideo && (
         <video
           ref={videoRef}
@@ -96,16 +115,23 @@ export default function ExternalScreen() {
         />
       )}
 
-      {/* Overlay de estado */}
+      {/* Barra superior */}
       <div className="absolute top-0 left-0 w-full flex justify-between p-4 text-white text-sm bg-black/30 backdrop-blur-md">
         <span>{decodeURIComponent(windowName)}</span>
         <span className="flex items-center gap-1">
-          {connected ? <Wifi className="h-4 w-4 text-green-400" /> : <WifiOff className="h-4 w-4 text-red-400" />}
-          {connected ? "Conectado" : "Desconectado"}
+          {connected ? (
+            <>
+              <Wifi className="h-4 w-4 text-green-400" /> Conectado
+            </>
+          ) : (
+            <>
+              <WifiOff className="h-4 w-4 text-red-400" /> Desconectado
+            </>
+          )}
         </span>
       </div>
 
-      {/* Info terapia (center cuando no hay video) */}
+      {/* Mensaje central cuando no hay vídeo */}
       {!sessionData.selectedTherapy?.hasVideo && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-white p-6">
           <div className="text-6xl mb-4">🧘‍♀️</div>
@@ -118,17 +144,17 @@ export default function ExternalScreen() {
         </div>
       )}
 
-      {/* Barra inferior con progreso – solo cuando hay video */}
+      {/* Barra de progreso inferior */}
       {sessionData.selectedTherapy?.hasVideo && videoLoaded && (
         <div className="absolute bottom-0 left-0 w-full p-3 bg-black/40 backdrop-blur-md text-white text-xs flex items-center gap-3">
-          <div>{fmt(current)} / {fmt(duration)}</div>
+          <div>{fmtTime(current)} / {fmtTime(duration)}</div>
           <div className="flex-1 h-1 bg-gray-600 rounded-full overflow-hidden">
-            <div className="h-full bg-cyan-400" style={{ width: `${(current/duration)*100}%` }} />
+            <div className="h-full bg-cyan-400" style={{ width: `${(current / duration) * 100}%` }} />
           </div>
         </div>
       )}
 
-      {/* Error overlay */}
+      {/* Overlay de error */}
       {error && (
         <div className="absolute inset-0 grid place-items-center bg-black/80 text-red-400 text-center p-6">
           <p>{error}</p>
