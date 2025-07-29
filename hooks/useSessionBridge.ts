@@ -20,7 +20,7 @@ export interface SessionData {
   sessionActive: boolean
   sessionType: "therapy" | "standby"
   therapyColor: string
-  /** Duración en minutos (cualquier número > 0) */
+  /** Duración en minutos – puede ser cualquier número > 0 */
   sessionDuration: number
   lightIntensity: number
   selectedTherapy: SelectedTherapy | null
@@ -29,17 +29,18 @@ export interface SessionData {
 }
 
 export interface SessionBridge {
-  /** Datos de la sesión sincronizados */
+  /** Últimos datos recibidos */
   sessionData: SessionData
-  /** ¿Hay conexión viva con el Window Manager? */
+  /** Conexión viva con el Window Manager */
   connected: boolean
 }
 
-/* --------------------------------------------------
- * Hook principal
- * -------------------------------------------------*/
+/* ==================================================
+ * useSessionBridge – hook de sincronización con la
+ * ventana externa (pop‑up) de la cabina.
+ * =================================================*/
 export function useSessionBridge(windowId: string | null): SessionBridge {
-  /* Estado local de la sesión */
+  /* -------- estado local -------- */
   const [sessionData, setSessionData] = useState<SessionData>(() => ({
     doorOpen: false,
     sessionActive: false,
@@ -51,15 +52,14 @@ export function useSessionBridge(windowId: string | null): SessionBridge {
     timestamp: Date.now(),
   }))
 
-  /* ¿Se recibió al menos un ACK/UPDATE? */
   const [connected, setConnected] = useState(false)
 
-  /* Refs internos para canal & heartbeat */
+  /* -------- refs internos -------- */
   const channelRef = useRef<BroadcastChannel | null>(null)
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null)
 
   /* --------------------------------------------------
-   * 1. Inicializar BroadcastChannel + Handshake
+   * 1️⃣  BroadcastChannel + handshake bidireccional
    * -------------------------------------------------*/
   useEffect(() => {
     if (!windowId) return
@@ -70,20 +70,17 @@ export function useSessionBridge(windowId: string | null): SessionBridge {
     const onBCMessage = (ev: MessageEvent) => {
       try {
         const { type, data, windowId: targetId } = ev.data || {}
-        if (targetId && targetId !== windowId) return // ignorar si no es para mí
+        if (targetId && targetId !== windowId) return // ignora si no es para mí
 
         switch (type) {
-          /* ------------ handshake bidireccional ------------ */
+          /* ---------- handshake ---------- */
           case "HANDSHAKE_REQUEST": {
-            ch.postMessage({ type: "HANDSHAKE", windowId, timestamp: Date.now() })
-            break
-          }
-          case "ACK": {
-            setConnected(true)
+            // ✅ la respuesta esperada por el Window Manager es ACK
+            ch.postMessage({ type: "ACK", windowId, timestamp: Date.now() })
             break
           }
 
-          /* ------------ payload con los datos de la sesión ------------ */
+          /* ---------- datos de sesión ---------- */
           case "UPDATE_DATA": {
             if (!data) break
             setSessionData({
@@ -99,38 +96,42 @@ export function useSessionBridge(windowId: string | null): SessionBridge {
             setConnected(true)
             break
           }
+
+          /* ---------- keep‑alive ---------- */
+          case "PING": {
+            ch.postMessage({ type: "PONG", windowId })
+            break
+          }
           default:
             break
         }
       } catch (err) {
-        console.error("useSessionBridge: error procesando mensaje", err)
+        console.error("useSessionBridge › onBCMessage", err)
       }
     }
 
     ch.addEventListener("message", onBCMessage)
 
-    /* -------- Handshake inicial -------- */
+    /* Enviamos nuestra presencia */
     setTimeout(() => {
-      ch.postMessage({ type: "HANDSHAKE", windowId, timestamp: Date.now() })
       ch.postMessage({ type: "SCREEN_READY", windowId })
     }, 400)
 
-    /* -------- Heartbeat cada 5 s -------- */
+    /* Heart‑beat cada 5 s */
     heartbeatRef.current = setInterval(() => {
       ch.postMessage({ type: "HEARTBEAT", windowId })
     }, 5000)
 
-    /* Limpieza */
+    /* cleanup */
     return () => {
       ch.removeEventListener("message", onBCMessage)
       ch.close()
-      if (heartbeatRef.current) clearInterval(heartbeatRef.current)
+      heartbeatRef.current && clearInterval(heartbeatRef.current)
     }
   }, [windowId])
 
   /* --------------------------------------------------
-   * 2. Fallback: escuchar también window.postMessage
-   *    (Safari no soporta BroadcastChannel en algunas versiones)
+   * 2️⃣  Fallback window.postMessage → Safari / iOS
    * -------------------------------------------------*/
   useEffect(() => {
     const onPM = (ev: MessageEvent) => {

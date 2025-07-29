@@ -9,7 +9,7 @@ import { ScreenProvider } from "@/hooks/ScreenProvider"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Simulador de Cabina AQ",
+  title: "Cabina AQ",
   description: "Sistema avanzado de terapia de luz y frecuencias",
     generator: 'v0.dev'
 }

@@ -2,20 +2,29 @@
 
 import { useState, useEffect } from "react"
 import { Toaster } from "@/components/ui/toaster"
-import ArduinoServiceProvider, { useArduinoService } from "@/components/arduino-service"
+
+import ArduinoServiceProvider, {
+  useArduinoService,
+} from "@/components/arduino-service"
 import { CustomTherapyProvider } from "@/components/custom-therapy-provider"
-import { AudioCacheProvider, useAudioCache } from "@/components/audio-cache-provider"
+import {
+  AudioCacheProvider,
+  useAudioCache,
+} from "@/components/audio-cache-provider"
+
 import TherapySelectionScreen from "@/components/therapy-selection-screen"
 import SessionControlScreen from "@/components/session-control-screen"
 import SimpleExternalWindowManager from "@/components/simple-external-window-manager"
+
 import type { Therapy } from "@/components/session-therapies"
+
 import LoadingScreen from "@/components/loading-screen"
 import PermissionsModal from "@/components/permissions-modal"
 
-/* ────────── rutas ────────── */
+/* ────────── “pantallas” ────────── */
 type Screen = "loading" | "selection" | "session"
 
-/* ══════════ ROOT ══════════ */
+/* ═════════════════  ROOT  (Next.js page) ═════════════════ */
 export default function Home() {
   return (
     <AudioCacheProvider>
@@ -28,91 +37,99 @@ export default function Home() {
   )
 }
 
-/* ══════════ APP PRINCIPAL ══════════ */
+/* ═════════════════  APP  ═════════════════ */
 function CabinaApp() {
-  /* ---------------- state ---------------- */
+  /* --------------- STATE --------------- */
   const [screen, setScreen] = useState<Screen>("loading")
   const [therapy, setTherapy] = useState<Therapy | null>(null)
-  const [duration, setDuration] = useState<"corto" | "mediano" | "largo">("corto")
+  const [duration, setDuration] =
+    useState<"corto" | "mediano" | "largo">("corto")
   const [light, setLight] = useState(80)
-  const [needsPerms, setNeedsPerms] = useState<boolean>(true) // default to true until we check localStorage
+  const [needsPerms, setNeedsPerms] = useState(true)
 
-  /* ---------------- servicios ---------------- */
+  /* --------------- SERVICES --------------- */
   const { isPreloading, preloadProgress, preloadAudio } = useAudioCache()
   const { connectionStatus, setAutoConnect } = useArduinoService()
   const arduinoReady = connectionStatus === "connected"
 
-  /* ---------------- splash timer ---------------- */
-  const SPLASH_TIMEOUT = 9000 // 9 s máximo en loading
+  /* --------------- SPLASH --------------- */
+  const SPLASH_TIMEOUT = 9_000
   const [bootStarted] = useState(() => Date.now())
 
-  /* check localStorage on client side */
+  /* Permisos (solo en cliente) */
   useEffect(() => {
-    // Only run on client side
-    if (typeof window !== 'undefined') {
-      const hasPerms = localStorage.getItem("cabina-perms-ok")
-      setNeedsPerms(!hasPerms)
+    if (typeof window !== "undefined") {
+      setNeedsPerms(!localStorage.getItem("cabina-perms-ok"))
     }
   }, [])
 
-  /* start tasks once */
+  /* Lanzar precarga y autoconexión solo 1 vez */
   useEffect(() => {
     preloadAudio()
-    setAutoConnect(true)
+    setAutoConnect(true) // => ArduinoService intentará reconectar solo
   }, [preloadAudio, setAutoConnect])
 
-  /* decide cuándo salir del loading */
+  /* Transición splash → selección */
   useEffect(() => {
     const id = setInterval(() => {
       const elapsed = Date.now() - bootStarted
       const audioDone = !isPreloading
-      const timeUp = elapsed > SPLASH_TIMEOUT
-      if ((audioDone && arduinoReady) || timeUp) {
-        if (needsPerms) {
-          // mostrará modal después del splash
-          setScreen("selection")
-        } else {
-          setScreen("selection")
-        }
+      const timeout = elapsed >= SPLASH_TIMEOUT
+
+      if ((audioDone && arduinoReady) || timeout) {
+        setScreen("selection")
         clearInterval(id)
       }
-    }, 300)
+    }, 350)
+
     return () => clearInterval(id)
   }, [isPreloading, arduinoReady, bootStarted])
 
-  /* ---------------- handlers ---------------- */
-  const handleStartTherapy = (t: Therapy, d: "corto" | "mediano" | "largo") => {
+  /* --------------- HANDLERS --------------- */
+  const handleStartTherapy = (
+    t: Therapy,
+    d: "corto" | "mediano" | "largo",
+  ) => {
     setTherapy(t)
     setDuration(d)
     setScreen("session")
   }
+
   const handleEndSession = () => {
     setTherapy(null)
     setScreen("selection")
   }
 
+  /* Duración en minutos numérico */
   const minutes = { corto: 4, mediano: 15, largo: 20 }[duration]
 
-  /* ---------------- render ---------------- */
+  /* --------------- RENDER --------------- */
   if (screen === "loading") {
-    return <LoadingScreen progress={preloadProgress} totalDurationMs={SPLASH_TIMEOUT} />
+    return (
+      <LoadingScreen
+        progress={preloadProgress}
+        totalDurationMs={SPLASH_TIMEOUT}
+      />
+    )
   }
 
   return (
     <>
       <main className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-      {/* Permisos primera vez */}
-      {needsPerms && (
-        <PermissionsModal
-          open={true}
-          onDone={() => {
-            if (typeof window !== 'undefined') {
-              localStorage.setItem("cabina-perms-ok", "1")
-            }
-            setNeedsPerms(false)
-          }}
-        />
-      )}
+        {/* Modal de permisos la primera vez */}
+        {needsPerms && (
+          <PermissionsModal
+            open={true}
+            onDone={() => {
+              if (typeof window !== "undefined") {
+                localStorage.setItem("cabina-perms-ok", "1")
+              }
+              setNeedsPerms(false)
+            }}
+          />
+        )}
+
+        {/* Pantalla principal */}
         {screen === "selection" ? (
           <TherapySelectionScreen onStartTherapy={handleStartTherapy} />
         ) : (
@@ -123,21 +140,28 @@ function CabinaApp() {
               lightIntensity={light}
               onLightIntensityChange={setLight}
               onEndSession={handleEndSession}
+              /*  auto-open hace que el temporizador arranque nada más
+                  montar el componente – útil cuando venimos de “selección” */
+              autoOpen
             />
           )
         )}
+
         <Toaster />
       </main>
 
-      {/* Ventana externa */}
+      {/* Ventana externa / pantalla extendida */}
       <SimpleExternalWindowManager
-        doorOpen={screen !== "loading"}
+        doorOpen={screen !== "loading"}  // se abre cuando termina el splash
         sessionActive={screen === "session"}
         sessionType={screen === "session" ? "therapy" : "standby"}
         therapyColor={therapy?.color || "#0891b2"}
         sessionDuration={minutes}
         lightIntensity={light}
         selectedTherapy={therapy}
+        /*  autoOpen => el componente abrirá el pop-up al montarse
+            (sin esperar a que el usuario pulse el botón flotante) */
+        autoOpen
       />
     </>
   )
