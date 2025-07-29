@@ -1,7 +1,15 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  type ReactNode,
+} from "react"
 
+/* ────────── interfaces ────────── */
 interface AudioCacheItem {
   blob: Blob
   url: string
@@ -10,216 +18,179 @@ interface AudioCacheItem {
 }
 
 interface AudioCacheContextType {
-  // Estado de precarga
+  /* Estado general */
   isPreloading: boolean
   preloadProgress: number
   totalFiles: number
   loadedFiles: number
   hasError: boolean
 
-  // Métodos de cache
-  getAudioBlob: (src: string) => Blob | null
-  getAudioUrl: (src: string) => string | null
-  getAudioDuration: (src: string) => number
-  isAudioReady: (src: string) => boolean
+  /* Query helpers */
+  getAudioBlob(src: string): Blob | null
+  getAudioUrl(src: string): string | null
+  getAudioDuration(src: string): number
+  isAudioReady(src: string): boolean
 
-  // Control de precarga
-  preloadAudio: () => Promise<void>
-  clearCache: () => void
+  /* Control */
+  preloadAudio(): Promise<void>
+  clearCache(): void
 }
 
-const AudioCacheContext = createContext<AudioCacheContextType | undefined>(undefined)
+/* ────────── contexto ────────── */
+const AudioCacheContext = createContext<AudioCacheContextType | undefined>(
+  undefined,
+)
 
-// Lista de archivos de audio a precargar - incluyendo MP3 y FLAC
-const AUDIO_FILES = [
-  // Archivos MP3 principales
-  "/audio/general-4min.mp3",
-  "/audio/general-15min.mp3",
-  "/audio/general-20min.mp3",
-  "/audio/cascada-4min.mp3",
-  "/audio/cascada-15min.mp3",
-  "/audio/cascada-20min.mp3",
-  "/audio/pausado-4min.mp3",
-  "/audio/pausado-15min.mp3",
-  "/audio/pausado-20min.mp3",
-  "/audio/intermitente-4min.mp3",
-  "/audio/intermitente-15min.mp3",
-  "/audio/intermitente-20min.mp3",
-  "/audio/relax-4min.mp3",
-  "/audio/relax-15min.mp3",
-  "/audio/relax-20min.mp3",
-  "/audio/energy-4min.mp3",
-  "/audio/energy-15min.mp3",
-  "/audio/energy-20min.mp3",
-  "/audio/balance-4min.mp3",
-  "/audio/balance-15min.mp3",
-  "/audio/balance-20min.mp3",
+/*
+ * ================================================================
+ *   Nuevos audios 2025
+ *   --------------------------------------------------------------
+ *   La lista se genera dinámicamente a partir de los identificadores
+ *   de terapia / patrón y de las duraciones disponibles.
+ * ================================================================
+ */
+const BASE_FREQUENCIES = [
+  /* patrones LED bases */
+  "general",
+  "cascada",
+  "pausado",
+  "intermitente",
+  /* nuevas terapias 2025 */
+  "estres",
+  "autismo",
+  "down",
+  "duelo",
+  "alcohol", // mismo id que “alcoholismo” → frecuencia "alcohol"
+  /* wellness extras */
+  "relax",
+  "energy",
+  "balance",
+  /* colores sólidos */
+  "red",
+  "green",
+  "blue",
+] as const
 
-  // Archivos FLAC de alta calidad
-  "/audio/flac/general-4min.flac",
-  "/audio/flac/general-15min.flac",
-  "/audio/flac/general-20min.flac",
-  "/audio/flac/cascada-4min.flac",
-  "/audio/flac/cascada-15min.flac",
-  "/audio/flac/cascada-20min.flac",
-  "/audio/flac/pausado-4min.flac",
-  "/audio/flac/pausado-15min.flac",
-  "/audio/flac/pausado-20min.flac",
-  "/audio/flac/intermitente-4min.flac",
-  "/audio/flac/intermitente-15min.flac",
-  "/audio/flac/intermitente-20min.flac",
-  "/audio/flac/red-4min.flac",
-  "/audio/flac/red-15min.flac",
-  "/audio/flac/red-20min.flac",
-  "/audio/flac/green-4min.flac",
-  "/audio/flac/green-15min.flac",
-  "/audio/flac/green-20min.flac",
-  "/audio/flac/blue-4min.flac",
-  "/audio/flac/blue-15min.flac",
-  "/audio/flac/blue-20min.flac",
-]
+const DURATIONS = ["4min", "15min", "20min"] as const
 
+/*
+ * Construimos la lista una sola vez al arrancar.
+ * Para cada <freq>-<dur>.mp3 y su versión .flac.
+ */
+const AUDIO_FILES: string[] = (() => {
+  const out: string[] = []
+  for (const freq of BASE_FREQUENCIES) {
+    for (const dur of DURATIONS) {
+      out.push(`/audio/${freq}-${dur}.mp3`)
+      out.push(`/audio/flac/${freq}-${dur}.flac`)
+    }
+  }
+  return out
+})()
+
+/* ─────────────────────────────────────────────────────────────── */
 export function AudioCacheProvider({ children }: { children: ReactNode }) {
+  /* ------- estado interno ------- */
   const [cache, setCache] = useState<Map<string, AudioCacheItem>>(new Map())
   const [isPreloading, setIsPreloading] = useState(false)
   const [preloadProgress, setPreloadProgress] = useState(0)
   const [loadedFiles, setLoadedFiles] = useState(0)
   const [hasError, setHasError] = useState(false)
-  const [hasStartedPreload, setHasStartedPreload] = useState(false)
+  const [hasStarted, setHasStarted] = useState(false)
 
   const totalFiles = AUDIO_FILES.length
 
-  // Función para obtener duración de audio usando AudioContext
-  const getAudioDurationFromBlob = useCallback(async (blob: Blob): Promise<number> => {
+  /* ------- util: calcular duración ------- */
+  const getDurationFromBlob = useCallback(async (b: Blob): Promise<number> => {
     try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-      const arrayBuffer = await blob.arrayBuffer()
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
-      audioContext.close()
-      return audioBuffer.duration
-    } catch (error) {
-      console.warn("Error obteniendo duración de audio:", error)
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const buf = await b.arrayBuffer()
+      const audioBuf = await ctx.decodeAudioData(buf)
+      ctx.close()
+      return audioBuf.duration
+    } catch (e) {
+      console.warn("AudioCache – error duration", e)
       return 0
     }
   }, [])
 
-  // Función para precargar un archivo individual
-  const preloadSingleFile = useCallback(
+  /* ------- carga 1 archivo ------- */
+  const preloadOne = useCallback(
     async (src: string): Promise<boolean> => {
       try {
-        console.log(`🎵 Precargando: ${src}`)
-
-        const response = await fetch(src)
-        if (!response.ok) {
-          console.warn(`❌ No se pudo cargar: ${src} (${response.status})`)
-          return false
-        }
-
-        const blob = await response.blob()
-        const duration = await getAudioDurationFromBlob(blob)
+        const res = await fetch(src)
+        if (!res.ok) return false
+        const blob = await res.blob()
+        const duration = await getDurationFromBlob(blob)
         const url = URL.createObjectURL(blob)
-
-        const cacheItem: AudioCacheItem = {
-          blob,
-          url,
-          duration,
-          loadedAt: Date.now(),
-        }
-
-        setCache((prev) => { const m = new Map(prev); m.set(src, cacheItem); return m })
-        console.log(`✅ Precargado: ${src} (${Math.floor(duration)}s)`)
+        setCache((m) => {
+          const n = new Map(m)
+          n.set(src, { blob, url, duration, loadedAt: Date.now() })
+          return n
+        })
         return true
-      } catch (error) {
-        console.error(`❌ Error precargando ${src}:`, error)
+      } catch (e) {
+        console.error("AudioCache – fetch fail", src, e)
         return false
       }
     },
-    [getAudioDurationFromBlob],
+    [getDurationFromBlob],
   )
 
-  // Función principal de precarga
+  /* ------- carga masiva ------- */
   const preloadAudio = useCallback(async () => {
-    if (isPreloading || hasStartedPreload) {
-      console.log("⚠️ Precarga ya en progreso o completada")
-      return
-    }
-
-    console.log("🚀 Iniciando precarga de audio...")
+    if (isPreloading || hasStarted) return
     setIsPreloading(true)
-    setHasStartedPreload(true)
-    setPreloadProgress(0)
+    setHasStarted(true)
     setLoadedFiles(0)
+    setPreloadProgress(0)
     setHasError(false)
 
-    let loaded = 0
-    let errors = 0
+    let ok = 0
+    let fail = 0
 
-    // Función para procesar archivos en lotes
-    const processBatch = async (files: string[], batchSize = 2) => {
-      for (let i = 0; i < files.length; i += batchSize) {
-        const batch = files.slice(i, i + batchSize)
-
-        // Procesar lote en paralelo
-        const results = await Promise.allSettled(batch.map(file => preloadSingleFile(file)))
-
-        results.forEach((result) => {
-          if (result.status === 'fulfilled' && result.value) loaded++
-          else errors++
-          setLoadedFiles(loaded)
-          setPreloadProgress(((loaded + errors) / totalFiles) * 100)
-        })
-
-        if (i + batchSize < files.length) await new Promise(res => setTimeout(res, 200))
-      }
+    const BATCH = 2
+    for (let i = 0; i < AUDIO_FILES.length; i += BATCH) {
+      const slice = AUDIO_FILES.slice(i, i + BATCH)
+      const res = await Promise.all(slice.map((s) => preloadOne(s)))
+      res.forEach((r) => (r ? ok++ : fail++))
+      setLoadedFiles(ok)
+      setPreloadProgress(((ok + fail) / totalFiles) * 100)
+      if (fail && fail % 5 === 0) await new Promise((r) => setTimeout(r, 300))
     }
 
-    try {
-      await processBatch(AUDIO_FILES)
-      if (errors > 0) {
-        setHasError(true)
-        console.warn(`⚠️ Precarga completada con ${errors} errores de ${totalFiles} archivos`)
-      } else {
-        console.log(`🎉 Precarga completada exitosamente: ${loaded}/${totalFiles} archivos`)
-      }
-    } catch (error) {
-      console.error("❌ Error general en precarga:", error)
-      setHasError(true)
-    } finally {
-      setIsPreloading(false)
-      console.log(`🏁 Precarga finalizada. Cache: ${cache.size} archivos`)
-    }
-  }, [isPreloading, hasStartedPreload, preloadSingleFile, totalFiles, cache.size])
+    setHasError(fail > 0)
+    setIsPreloading(false)
+    console.log(
+      `AudioCache – done (${ok}/${totalFiles} ok${fail ? ", " + fail + " fails" : ""})`,
+    )
+  }, [isPreloading, hasStarted, preloadOne, totalFiles])
 
-  // Iniciar precarga automáticamente al montar
+  /* auto‑start 1 s después de montar */
   useEffect(() => {
-    if (!hasStartedPreload) {
-      const timer = setTimeout(preloadAudio, 1000)
-      return () => clearTimeout(timer)
+    if (!hasStarted) {
+      const t = setTimeout(preloadAudio, 1_000)
+      return () => clearTimeout(t)
     }
-  }, [hasStartedPreload, preloadAudio])
+  }, [hasStarted, preloadAudio])
 
-  // Métodos del contexto
-  const getAudioBlob = useCallback((src: string) => cache.get(src)?.blob || null, [cache])
-  const getAudioUrl = useCallback((src: string) => cache.get(src)?.url || null, [cache])
-  const getAudioDuration = useCallback((src: string) => cache.get(src)?.duration || 0, [cache])
-  const isAudioReady = useCallback((src: string) => cache.has(src), [cache])
+  /* ------- helpers ------- */
+  const getAudioBlob = useCallback((s: string) => cache.get(s)?.blob ?? null, [cache])
+  const getAudioUrl = useCallback((s: string) => cache.get(s)?.url ?? null, [cache])
+  const getAudioDuration = useCallback((s: string) => cache.get(s)?.duration ?? 0, [cache])
+  const isAudioReady = useCallback((s: string) => cache.has(s), [cache])
 
   const clearCache = useCallback(() => {
-    cache.forEach(item => URL.revokeObjectURL(item.url))
+    cache.forEach((c) => URL.revokeObjectURL(c.url))
     setCache(new Map())
     setPreloadProgress(0)
     setLoadedFiles(0)
-    setHasStartedPreload(false)
+    setHasStarted(false)
     setHasError(false)
-    console.log("🧹 Cache de audio limpiado")
   }, [cache])
 
-  // Cleanup al desmontar
-  useEffect(() => () => {
-    cache.forEach(item => URL.revokeObjectURL(item.url))
-  }, [cache])
-
-  const value = {
+  /* ------- out ------- */
+  const ctx: AudioCacheContextType = {
     isPreloading,
     preloadProgress,
     totalFiles,
@@ -233,11 +204,11 @@ export function AudioCacheProvider({ children }: { children: ReactNode }) {
     clearCache,
   }
 
-  return <AudioCacheContext.Provider value={value}>{children}</AudioCacheContext.Provider>
+  return <AudioCacheContext.Provider value={ctx}>{children}</AudioCacheContext.Provider>
 }
 
 export function useAudioCache() {
-  const context = useContext(AudioCacheContext)
-  if (!context) throw new Error("useAudioCache debe ser usado dentro de un AudioCacheProvider")
-  return context
+  const c = useContext(AudioCacheContext)
+  if (!c) throw new Error("useAudioCache debe usarse dentro de AudioCacheProvider")
+  return c
 }
