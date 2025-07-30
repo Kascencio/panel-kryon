@@ -63,24 +63,20 @@ export default function SimpleExternalWindowManager({
 
   const { toast } = useToast()
 
-  /* ─────────────────────────────────────────
-   * PATCH - detección / solicitud de pantalla
-   * ───────────────────────────────────────── */
+  /* ─────────────────────────────────────── */
+  /*  Detectar / solicitar permisos pantalla */
+  /* ─────────────────────────────────────── */
   const getExternalScreen = useCallback(async (): Promise<Screen | null> => {
-    // 1) ¿existe la API?
-    //    (Chrome 118+ detrás de flag, Edge ≥125, etc.)
-    // @ts-ignore – aún sin typings estables
-    const hasAPI = "getScreenDetails" in window
-    if (!hasAPI) return null
+    // @ts-ignore – API experimental
+    if (!("getScreenDetails" in window)) return null
 
-    // 2) intenta conseguir permiso (según qué nombre acepte)
-    const tryPermission = async (permName: "window-placement" | "window-management") => {
+    const request = async (name: "window-placement" | "window-management") => {
       try {
         // @ts-ignore
-        const q = await navigator.permissions.query({ name: permName as any })
+        const q = await navigator.permissions.query({ name })
         if (q.state === "granted") return true
         // @ts-ignore
-        const r = await navigator.permissions.request({ name: permName as any })
+        const r = await navigator.permissions.request({ name })
         return r.state === "granted"
       } catch {
         return false
@@ -88,21 +84,20 @@ export default function SimpleExternalWindowManager({
     }
 
     const granted =
-      (await tryPermission("window-placement")) ||
-      (await tryPermission("window-management"))
+      (await request("window-placement")) ||
+      (await request("window-management"))
 
     if (!granted) return null
 
-    /* 3) obtener los detalles de las pantallas */
     try {
       // @ts-ignore
       const details = await (window as any).getScreenDetails()
-      // Elige la primera pantalla que no sea la principal
-      const ext: Screen | undefined = details.screens.find(
-        // @ts-ignore
-        (s: any) => !s.isPrimary,
+      return (
+        details.screens.find(
+          // @ts-ignore
+          (s: any) => !s.isPrimary,
+        ) ?? null
       )
-      return ext ?? null
     } catch {
       return null
     }
@@ -143,7 +138,6 @@ export default function SimpleExternalWindowManager({
       return
     }
 
-    /* ① pantalla secundaria (si la hay) */
     const extScreen = await getExternalScreen()
 
     if (!extScreen) {
@@ -154,14 +148,15 @@ export default function SimpleExternalWindowManager({
       })
     }
 
-    /* ② specs para window.open */
+    /* specs */
     const specs = extScreen
       ? [
+          // coordenadas exactas
           `left=${extScreen.availLeft ?? (extScreen as any).left ?? 0}`,
           `top=${extScreen.availTop ?? (extScreen as any).top ?? 0}`,
           `width=${extScreen.availWidth ?? extScreen.width}`,
           `height=${extScreen.availHeight ?? extScreen.height}`,
-          "fullscreen=yes",
+          "fullscreen=yes", // FULLSCREEN:
           "scrollbars=no",
         ].join(",")
       : [
@@ -171,9 +166,9 @@ export default function SimpleExternalWindowManager({
           "top=50",
           "resizable=yes",
           "scrollbars=no",
+          "fullscreen=yes", // FULLSCREEN:
         ].join(",")
 
-    /* ③ open */
     const id   = `ext-${Date.now()}`
     const name = "Cabina · Pantalla Extendida"
     const url  = `/external-screen?id=${id}&name=${encodeURIComponent(name)}`
@@ -187,6 +182,13 @@ export default function SimpleExternalWindowManager({
         variant: "destructive",
       })
       return
+    }
+
+    /* FULLSCREEN: intentar forzar pantalla completa */
+    try {
+      await ref.document?.documentElement?.requestFullscreen?.()
+    } catch {
+      /* silencioso – algunos navegadores solo permiten fullscreen tras user-gesture */
     }
 
     setExternal({ id, name, url, windowRef: ref })
@@ -240,7 +242,7 @@ export default function SimpleExternalWindowManager({
     }
   }, [external, postUpdate, closeWindow])
 
-  /* ---------------- heartbeat watchdog ---------------- */
+  /* ---------------- watchdog ---------------- */
   useEffect(() => {
     if (status !== "connected") return
     const iv = setInterval(() => {
