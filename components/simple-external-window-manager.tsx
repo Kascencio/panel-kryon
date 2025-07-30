@@ -28,17 +28,13 @@ export interface ExternalWindow {
 }
 
 export interface WindowManagerProps {
-  /** Cuando la app está lista (tras el splash) */
   doorOpen: boolean
-  /** ¿Hay terapia activa? */
   sessionActive: boolean
   sessionType: "therapy" | "standby"
   therapyColor: string
-  /** Duración (minutos) */
   sessionDuration: number
   lightIntensity: number
   selectedTherapy: any | null
-  /** Si es true, intenta abrir el pop‑up automáticamente */
   autoOpen?: boolean
 }
 
@@ -55,17 +51,62 @@ export default function SimpleExternalWindowManager({
 }: WindowManagerProps) {
   /* ---------------- state interno ---------------- */
   const [showPanel, setShowPanel] = useState(false)
-  const [external, setExternal] = useState<ExternalWindow | null>(null)
-  const [status, setStatus] = useState<
-    "disconnected" | "connecting" | "connected"
-  >("disconnected")
+  const [external, setExternal]   = useState<ExternalWindow | null>(null)
+  const [status, setStatus]       = useState<"disconnected" | "connecting" | "connected">(
+    "disconnected",
+  )
   const [lastHB, setLastHB] = useState(0)
 
   /* refs */
   const channelRef = useRef<BroadcastChannel | null>(null)
-  const openedRef = useRef(false) // ← PATCH: recuerda si ya abrimos el pop‑up
+  const openedRef  = useRef(false)
 
   const { toast } = useToast()
+
+  /* ─────────────────────────────────────────
+   * PATCH - detección / solicitud de pantalla
+   * ───────────────────────────────────────── */
+  const getExternalScreen = useCallback(async (): Promise<Screen | null> => {
+    // 1) ¿existe la API?
+    //    (Chrome 118+ detrás de flag, Edge ≥125, etc.)
+    // @ts-ignore – aún sin typings estables
+    const hasAPI = "getScreenDetails" in window
+    if (!hasAPI) return null
+
+    // 2) intenta conseguir permiso (según qué nombre acepte)
+    const tryPermission = async (permName: "window-placement" | "window-management") => {
+      try {
+        // @ts-ignore
+        const q = await navigator.permissions.query({ name: permName as any })
+        if (q.state === "granted") return true
+        // @ts-ignore
+        const r = await navigator.permissions.request({ name: permName as any })
+        return r.state === "granted"
+      } catch {
+        return false
+      }
+    }
+
+    const granted =
+      (await tryPermission("window-placement")) ||
+      (await tryPermission("window-management"))
+
+    if (!granted) return null
+
+    /* 3) obtener los detalles de las pantallas */
+    try {
+      // @ts-ignore
+      const details = await (window as any).getScreenDetails()
+      // Elige la primera pantalla que no sea la principal
+      const ext: Screen | undefined = details.screens.find(
+        // @ts-ignore
+        (s: any) => !s.isPrimary,
+      )
+      return ext ?? null
+    } catch {
+      return null
+    }
+  }, [])
 
   /* ---------------- enviar UPDATE ---------------- */
   const postUpdate = useCallback(() => {
@@ -94,33 +135,55 @@ export default function SimpleExternalWindowManager({
     external?.id,
   ])
 
-  /* ---------------- abrir pop‑up ---------------- */
-  const openWindow = useCallback(() => {
-    if (openedRef.current) return // PATCH: evita segundo intento en Strict Mode
-
+  /* ---------------- abrir pop-up ---------------- */
+  const openWindow = useCallback(async () => {
+    if (openedRef.current) return
     if (external?.windowRef && !external.windowRef.closed) {
       external.windowRef.focus()
       return
     }
 
-    const id = `ext-${Date.now()}`
+    /* ① pantalla secundaria (si la hay) */
+    const extScreen = await getExternalScreen()
+
+    if (!extScreen) {
+      toast({
+        title: "No se detectó un monitor externo",
+        description:
+          "Se abrirá la ventana en la pantalla actual. (Chrome Canary 118+ con la flag *experimental-web-platform-features* permite moverla).",
+      })
+    }
+
+    /* ② specs para window.open */
+    const specs = extScreen
+      ? [
+          `left=${extScreen.availLeft ?? (extScreen as any).left ?? 0}`,
+          `top=${extScreen.availTop ?? (extScreen as any).top ?? 0}`,
+          `width=${extScreen.availWidth ?? extScreen.width}`,
+          `height=${extScreen.availHeight ?? extScreen.height}`,
+          "fullscreen=yes",
+          "scrollbars=no",
+        ].join(",")
+      : [
+          "width=1200",
+          "height=800",
+          `left=${Math.max(0, window.screen.width - 1220)}`,
+          "top=50",
+          "resizable=yes",
+          "scrollbars=no",
+        ].join(",")
+
+    /* ③ open */
+    const id   = `ext-${Date.now()}`
     const name = "Cabina · Pantalla Extendida"
-    const url = `/external-screen?id=${id}&name=${encodeURIComponent(name)}`
-    const specs = [
-      "width=1200",
-      "height=800",
-      `left=${Math.max(0, window.screen.width - 1220)}`,
-      "top=50",
-      "resizable=yes",
-      "scrollbars=no",
-    ].join(",")
+    const url  = `/external-screen?id=${id}&name=${encodeURIComponent(name)}`
 
     const ref = window.open(url, id, specs)
     if (!ref) {
       toast({
-        title: "Pop‑up bloqueado",
+        title: "Pop-up bloqueado",
         description:
-          "Permite ventanas emergentes para abrir la pantalla externa.",
+          "Activa las ventanas emergentes para usar la pantalla extendida.",
         variant: "destructive",
       })
       return
@@ -128,15 +191,15 @@ export default function SimpleExternalWindowManager({
 
     setExternal({ id, name, url, windowRef: ref })
     setStatus("connecting")
-    openedRef.current = true // PATCH: marcado como abierto
-  }, [external?.windowRef, toast])
+    openedRef.current = true
+  }, [external?.windowRef, getExternalScreen, toast])
 
   /* ---------------- cerrar ---------------- */
   const closeWindow = useCallback(() => {
     external?.windowRef?.close()
     setExternal(null)
     setStatus("disconnected")
-    openedRef.current = false // para poder re‑abrir manualmente si cierra
+    openedRef.current = false
   }, [external])
 
   /* ---------------- BroadcastChannel ---------------- */
@@ -188,13 +251,10 @@ export default function SimpleExternalWindowManager({
 
   /* ---------------- autoOpen ---------------- */
   useEffect(() => {
-    if (!autoOpen) return
-    if (!doorOpen) return // espera al fin del splash
-    if (status !== "disconnected") return
-    openWindow()
+    if (autoOpen && doorOpen && status === "disconnected") openWindow()
   }, [autoOpen, doorOpen, status, openWindow])
 
-  /* ---------------- sync en cada prop change ---------------- */
+  /* ---------------- sync ---------------- */
   useEffect(() => {
     if (status === "connected") postUpdate()
   }, [status, postUpdate])
@@ -233,9 +293,11 @@ export default function SimpleExternalWindowManager({
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             className="fixed bottom-24 right-4 w-80 space-y-4 rounded-lg border border-gray-700/40 bg-gray-900/95 p-4 backdrop-blur-lg"
           >
+            {/* header */}
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2 text-white">
-                <Monitor className="h-5 w-5 text-cyan-400" /> Ventana Externa
+                <Monitor className="h-5 w-5 text-cyan-400" />
+                Ventana Externa
               </span>
               <Button
                 variant="ghost"
@@ -270,15 +332,18 @@ export default function SimpleExternalWindowManager({
                 <span>Terapia:</span>
                 <span className="text-white">{selectedTherapy.name}</span>
                 <span>Duración:</span>
-                <span className="text-white">{sessionDuration} min</span>
+                <span className="text-white">{sessionDuration} min</span>
                 <span>Tipo:</span>
                 <span className="text-white flex items-center gap-1">
                   {selectedTherapy.hasVideo ? (
-                    <Video className="h-3 w-3" />
+                    <>
+                      <Video className="h-3 w-3" /> Video
+                    </>
                   ) : (
-                    <Music className="h-3 w-3" />
+                    <>
+                      <Music className="h-3 w-3" /> Audio
+                    </>
                   )}
-                  {selectedTherapy.hasVideo ? "Video" : "Audio"}
                 </span>
               </div>
             )}
@@ -287,10 +352,15 @@ export default function SimpleExternalWindowManager({
             <div className="flex gap-2">
               {status === "disconnected" ? (
                 <Button className="flex-1" onClick={openWindow}>
-                  <ExternalLink className="h-4 w-4 mr-1" /> Abrir
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  Abrir
                 </Button>
               ) : (
-                <Button variant="outline" className="flex-1" onClick={closeWindow}>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={closeWindow}
+                >
                   <X className="h-4 w-4 mr-1" /> Cerrar
                 </Button>
               )}
