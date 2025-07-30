@@ -321,7 +321,7 @@ export default function SessionControlScreen({
                   </span>
                   <Slider
                     value={[lightIntensity]}
-                    min={10}
+                    min={0}
                     max={100}
                     step={5}
                     onValueChange={changeInten}
