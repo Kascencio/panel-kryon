@@ -159,8 +159,6 @@ function CabinaApp() {
         sessionDuration={minutes}
         lightIntensity={light}
         selectedTherapy={therapy}
-        /*  autoOpen => el componente abrirá el pop-up al montarse
-            (sin esperar a que el usuario pulse el botón flotante) */
         autoOpen
       />
     </>

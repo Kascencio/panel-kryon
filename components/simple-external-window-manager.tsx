@@ -144,30 +144,24 @@ export default function SimpleExternalWindowManager({
       toast({
         title: "No se detectó un monitor externo",
         description:
-          "Se abrirá la ventana en la pantalla actual. (Chrome Canary 118+ con la flag *experimental-web-platform-features* permite moverla).",
+          "Conecta una pantalla externa para usar esta función.",
+        variant: "destructive",
       })
+      return // <--- No abrir la ventana si no hay pantalla externa
     }
 
+    openedRef.current = true // <--- Marcar ANTES de abrir la ventana
+
     /* specs */
-    const specs = extScreen
-      ? [
-          // coordenadas exactas
-          `left=${extScreen.availLeft ?? (extScreen as any).left ?? 0}`,
-          `top=${extScreen.availTop ?? (extScreen as any).top ?? 0}`,
-          `width=${extScreen.availWidth ?? extScreen.width}`,
-          `height=${extScreen.availHeight ?? extScreen.height}`,
-          "fullscreen=yes", // FULLSCREEN:
-          "scrollbars=no",
-        ].join(",")
-      : [
-          "width=1200",
-          "height=800",
-          `left=${Math.max(0, window.screen.width - 1220)}`,
-          "top=50",
-          "resizable=yes",
-          "scrollbars=no",
-          "fullscreen=yes", // FULLSCREEN:
-        ].join(",")
+    const specs = [
+      // coordenadas exactas
+      `left=${extScreen.availLeft ?? (extScreen as any).left ?? 0}`,
+      `top=${extScreen.availTop ?? (extScreen as any).top ?? 0}`,
+      `width=${extScreen.availWidth ?? extScreen.width}`,
+      `height=${extScreen.availHeight ?? extScreen.height}`,
+      "fullscreen=yes", // FULLSCREEN:
+      "scrollbars=no",
+    ].join(",")
 
     const id   = `ext-${Date.now()}`
     const name = "Cabina · Pantalla Extendida"
@@ -181,6 +175,7 @@ export default function SimpleExternalWindowManager({
           "Activa las ventanas emergentes para usar la pantalla extendida.",
         variant: "destructive",
       })
+      openedRef.current = false // <--- Reset si falla
       return
     }
 
@@ -193,7 +188,6 @@ export default function SimpleExternalWindowManager({
 
     setExternal({ id, name, url, windowRef: ref })
     setStatus("connecting")
-    openedRef.current = true
   }, [external?.windowRef, getExternalScreen, toast])
 
   /* ---------------- cerrar ---------------- */
@@ -201,7 +195,7 @@ export default function SimpleExternalWindowManager({
     external?.windowRef?.close()
     setExternal(null)
     setStatus("disconnected")
-    openedRef.current = false
+    openedRef.current = false // <--- Reset al cerrar
   }, [external])
 
   /* ---------------- BroadcastChannel ---------------- */
@@ -253,8 +247,16 @@ export default function SimpleExternalWindowManager({
 
   /* ---------------- autoOpen ---------------- */
   useEffect(() => {
-    if (autoOpen && doorOpen && status === "disconnected") openWindow()
-  }, [autoOpen, doorOpen, status, openWindow])
+    if (autoOpen && doorOpen && status === "disconnected") {
+      (async () => {
+        const extScreen = await getExternalScreen()
+        if (extScreen) {
+          openWindow()
+        }
+        // Si no hay pantalla externa, no hace nada
+      })()
+    }
+  }, [autoOpen, doorOpen, status, openWindow, getExternalScreen])
 
   /* ---------------- sync ---------------- */
   useEffect(() => {
