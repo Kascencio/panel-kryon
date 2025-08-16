@@ -10,9 +10,9 @@ import { useSessionBridge } from "@/hooks/useSessionBridge"
 
 /* ────────── helpers ────────── */
 const fmtTime = (s: number) =>
-  `${Math.floor(s / 60).toString().padStart(2, "0")}:${Math.floor(s % 60)
+  `${Math.floor(s / 60).toString().padStart(1, "0")}:${Math.floor(s % 60)
     .toString()
-    .padStart(2, "0")}`
+    .padStart(1, "0")}`
 
 /* ══════════ componente ══════════ */
 export default function ExternalScreen() {

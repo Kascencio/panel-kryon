@@ -53,7 +53,7 @@ function CabinaApp() {
   const arduinoReady = connectionStatus === "connected"
 
   /* --------------- SPLASH --------------- */
-  const SPLASH_TIMEOUT = 9_000
+  const SPLASH_TIMEOUT = 20_000
   const [bootStarted] = useState(() => Date.now())
 
   /* Permisos (solo en cliente) */

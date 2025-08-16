@@ -43,7 +43,7 @@ const AudioCacheContext = createContext<AudioCacheContextType | undefined>(
 
 /*
  * ================================================================
- *   Nuevos audios 2025
+ *   Audios
  *   --------------------------------------------------------------
  *   La lista se genera dinámicamente a partir de los identificadores
  *   de terapia / patrón y de las duraciones disponibles.
@@ -55,12 +55,13 @@ const BASE_FREQUENCIES = [
   "cascada",
   "pausado",
   "intermitente",
-  /* nuevas terapias 2025 */
+  /* nuevas terapias 2025
   "estres",
   "autismo",
   "down",
   "duelo",
   "alcohol", // mismo id que “alcoholismo” → frecuencia "alcohol"
+  */
   /* wellness extras */
   "relax",
   "energy",
