@@ -99,11 +99,15 @@ export default function LoadingScreen({ progress, error = false, totalDurationMs
         )}
 
         {/* Puntos decorativos */}
-        <div className="mt-12 flex space-x-6">
-          {[0,1,2,3,4].map(i => (
-            <div key={i} className="w-3 h-3 rounded-full bg-cyan-500 animate-pulse" style={{ animationDelay: `${i*0.2}s`, opacity: 0.2 + i*0.15 }} />
-          ))}
-        </div>
+          <div className="mt-12 flex space-x-6">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className="w-3 h-3 rounded-full bg-cyan-500 animate-pulse"
+                style={{ animationDelay: `${i * 0.2}s`, opacity: 0.2 + i * 0.15 }}
+              />
+            ))}
+          </div>
 
         <div className="absolute bottom-8 text-xs text-gray-600">Versión 2.0 · Sistema Avanzado de Terapia Cuántica</div>
       </div>

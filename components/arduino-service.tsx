@@ -243,7 +243,11 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
           toast({ title: "Sistema Cuántico desconectado" })
   }, [toast])
 
-  useEffect(() => () => { desconectar() }, [desconectar])
+  useEffect(() => {
+    return () => {
+      void desconectar()
+    }
+  }, [desconectar])
 
   const ctx: Ctx = {
     connected,
