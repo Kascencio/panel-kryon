@@ -60,6 +60,7 @@ export default function SimpleExternalWindowManager({
   /* refs */
   const channelRef = useRef<BroadcastChannel | null>(null)
   const openedRef  = useRef(false)
+  const screenCheckInterval = useRef<NodeJS.Timeout | null>(null)
 
   const { toast } = useToast()
 
@@ -67,38 +68,80 @@ export default function SimpleExternalWindowManager({
   /*  Detectar / solicitar permisos pantalla */
   /* ─────────────────────────────────────── */
   const getExternalScreen = useCallback(async (): Promise<Screen | null> => {
-    // @ts-ignore – API experimental
-    if (!("getScreenDetails" in window)) return null
-
-    const request = async (name: "window-placement" | "window-management") => {
-      try {
-        // @ts-ignore
-        const q = await navigator.permissions.query({ name })
-        if (q.state === "granted") return true
-        // @ts-ignore
-        const r = await navigator.permissions.request({ name })
-        return r.state === "granted"
-      } catch {
-        return false
-      }
-    }
-
-    const granted =
-      (await request("window-placement")) ||
-      (await request("window-management"))
-
-    if (!granted) return null
-
     try {
+      // @ts-ignore – API experimental
+      if (!("getScreenDetails" in window)) {
+        console.log("⚠️ getScreenDetails no disponible en este navegador")
+        return null
+      }
+
+      const request = async (name: "window-placement" | "window-management") => {
+        try {
+          // @ts-ignore
+          const q = await navigator.permissions.query({ name })
+          if (q.state === "granted") {
+            console.log(`✅ Permiso ${name} ya concedido`)
+            return true
+          }
+          // @ts-ignore
+          const r = await navigator.permissions.request({ name })
+          const granted = r.state === "granted"
+          console.log(`🔐 Permiso ${name}: ${granted ? 'concedido' : 'denegado'}`)
+          return granted
+        } catch (err) {
+          console.warn(`❌ Error solicitando permiso ${name}:`, err)
+          return false
+        }
+      }
+
+      console.log("🔐 Solicitando permisos de pantalla...")
+      const granted =
+        (await request("window-placement")) ||
+        (await request("window-management"))
+
+      if (!granted) {
+        console.log("❌ Permisos de pantalla denegados")
+        return null
+      }
+
+      console.log("✅ Permisos concedidos, obteniendo detalles de pantalla...")
       // @ts-ignore
       const details = await (window as any).getScreenDetails()
-      return (
-        details.screens.find(
-          // @ts-ignore
-          (s: any) => !s.isPrimary,
-        ) ?? null
+      
+      if (!details || !details.screens || !Array.isArray(details.screens)) {
+        console.log("❌ No se pudieron obtener detalles de pantalla")
+        return null
+      }
+
+      console.log(`📺 Pantallas detectadas: ${details.screens.length}`)
+      details.screens.forEach((screen: any, index: number) => {
+        console.log(`  Pantalla ${index}:`, {
+          width: screen.width,
+          height: screen.height,
+          isPrimary: screen.isPrimary,
+          availWidth: screen.availWidth,
+          availHeight: screen.availHeight
+        })
+      })
+
+      const externalScreen = details.screens.find(
+        // @ts-ignore
+        (s: any) => !s.isPrimary,
       )
-    } catch {
+
+      if (externalScreen) {
+        console.log("🎯 Pantalla externa encontrada:", {
+          width: externalScreen.width,
+          height: externalScreen.height,
+          isPrimary: externalScreen.isPrimary
+        })
+        return externalScreen
+      } else {
+        console.log("❌ No se encontró pantalla externa (todas son primarias)")
+        return null
+      }
+    } catch (err) {
+      console.error("💥 Error en getExternalScreen:", err)
       return null
     }
   }, [])
@@ -132,59 +175,131 @@ export default function SimpleExternalWindowManager({
 
   /* ---------------- abrir pop-up ---------------- */
   const openWindow = useCallback(async () => {
-    if (openedRef.current) return
+    console.log("🚀 Iniciando apertura de ventana externa...")
+    
+    if (openedRef.current) {
+      console.log("⚠️ Ya se está intentando abrir una ventana, saltando...")
+      return
+    }
+    
     if (external?.windowRef && !external.windowRef.closed) {
+      console.log("🔵 Ventana ya existe, enfocando...")
       external.windowRef.focus()
       return
     }
 
+    console.log("🔍 Obteniendo pantalla externa...")
     const extScreen = await getExternalScreen()
 
     if (!extScreen) {
+      console.log("❌ No se detectó pantalla externa, mostrando toast...")
       toast({
         title: "No se detectó un monitor externo",
         description:
           "Conecta una pantalla externa para usar esta función.",
         variant: "destructive",
       })
-      return // <--- No abrir la ventana si no hay pantalla externa
+      return
     }
 
-    openedRef.current = true // <--- Marcar ANTES de abrir la ventana
+    console.log("✅ Pantalla externa confirmada, procediendo a abrir ventana...")
+    openedRef.current = true // Marcar ANTES de abrir la ventana
 
     /* specs */
     const specs = [
       // coordenadas exactas
-      `left=${extScreen.availLeft ?? (extScreen as any).left ?? 0}`,
-      `top=${extScreen.availTop ?? (extScreen as any).top ?? 0}`,
-      `width=${extScreen.availWidth ?? extScreen.width}`,
-      `height=${extScreen.availHeight ?? extScreen.height}`,
+      `left=${(extScreen as any).availLeft ?? (extScreen as any).left ?? 0}`,
+      `top=${(extScreen as any).availTop ?? (extScreen as any).top ?? 0}`,
+      `width=${(extScreen as any).availWidth ?? extScreen.width}`,
+      `height=${(extScreen as any).availHeight ?? extScreen.height}`,
       "fullscreen=yes", // FULLSCREEN:
       "scrollbars=no",
+      "menubar=no",
+      "toolbar=no",
+      "location=no",
+      "status=no",
+      "resizable=no",
+      "scrollbars=no",
+      "titlebar=no",
     ].join(",")
+    
+    console.log("📐 Especificaciones de ventana:", specs)
 
     const id   = `ext-${Date.now()}`
     const name = "Cabina · Pantalla Extendida"
     const url  = `/external-screen?id=${id}&name=${encodeURIComponent(name)}`
 
+    console.log("🌐 Abriendo ventana con URL:", url)
     const ref = window.open(url, id, specs)
+    
     if (!ref) {
+      console.log("❌ Ventana bloqueada por el navegador")
       toast({
         title: "Pop-up bloqueado",
         description:
           "Activa las ventanas emergentes para usar la pantalla extendida.",
         variant: "destructive",
       })
-      openedRef.current = false // <--- Reset si falla
+      openedRef.current = false // Reset si falla
       return
     }
+    
+    console.log("✅ Ventana abierta exitosamente:", ref)
 
-    /* FULLSCREEN: intentar forzar pantalla completa */
-    try {
-      await ref.document?.documentElement?.requestFullscreen?.()
-    } catch {
-      /* silencioso – algunos navegadores solo permiten fullscreen tras user-gesture */
+    /* FULLSCREEN: forzar pantalla completa de múltiples formas */
+    const forceFullscreen = async () => {
+      try {
+        // Método 1: requestFullscreen estándar
+        if (ref.document?.documentElement?.requestFullscreen) {
+          await ref.document.documentElement.requestFullscreen()
+          return true
+        }
+      } catch (e) {
+        console.log("Método 1 falló:", e)
+      }
+
+      try {
+        // Método 2: webkitRequestFullscreen (Safari)
+        if ((ref.document?.documentElement as any)?.webkitRequestFullscreen) {
+          await (ref.document.documentElement as any).webkitRequestFullscreen()
+          return true
+        }
+      } catch (e) {
+        console.log("Método 2 falló:", e)
+      }
+
+      try {
+        // Método 3: mozRequestFullScreen (Firefox)
+        if ((ref.document?.documentElement as any)?.mozRequestFullScreen) {
+          await (ref.document.documentElement as any).mozRequestFullScreen()
+          return true
+        }
+      } catch (e) {
+        console.log("Método 3 falló:", e)
+      }
+
+      try {
+        // Método 4: msRequestFullscreen (IE/Edge)
+        if ((ref.document?.documentElement as any)?.msRequestFullscreen) {
+          await (ref.document.documentElement as any).msRequestFullscreen()
+          return true
+        }
+      } catch (e) {
+        console.log("Método 4 falló:", e)
+      }
+
+      return false
     }
+
+    // Intentar pantalla completa después de un pequeño delay
+    setTimeout(async () => {
+      const success = await forceFullscreen()
+      if (success) {
+        console.log("🖥️ Pantalla completa activada")
+      } else {
+        console.log("⚠️ No se pudo activar pantalla completa automáticamente")
+      }
+    }, 500)
 
     setExternal({ id, name, url, windowRef: ref })
     setStatus("connecting")
@@ -240,10 +355,23 @@ export default function SimpleExternalWindowManager({
   useEffect(() => {
     if (status !== "connected") return
     const iv = setInterval(() => {
-      if (Date.now() - lastHB > 10_000) setStatus("disconnected")
-    }, 5_000)
+      // Verificar si la ventana sigue abierta
+      if (external?.windowRef && external.windowRef.closed) {
+        console.log("🔴 Ventana externa cerrada, reseteando estado...")
+        setExternal(null)
+        setStatus("disconnected")
+        openedRef.current = false
+        return
+      }
+      
+      // Verificar heartbeat
+      if (Date.now() - lastHB > 10_000) {
+        console.log("💔 Sin heartbeat, marcando como desconectado...")
+        setStatus("disconnected")
+      }
+    }, 2_000) // Verificar más frecuentemente (cada 2 segundos)
     return () => clearInterval(iv)
-  }, [status, lastHB])
+  }, [status, lastHB, external])
 
   /* ---------------- autoOpen ---------------- */
   useEffect(() => {
@@ -257,6 +385,59 @@ export default function SimpleExternalWindowManager({
       })()
     }
   }, [autoOpen, doorOpen, status, openWindow, getExternalScreen])
+
+  /* ---------------- Detector de pantallas mejorado ---------------- */
+  useEffect(() => {
+    // Solo activar detector si autoOpen está habilitado y doorOpen es true
+    if (!autoOpen || !doorOpen) {
+      if (screenCheckInterval.current) {
+        clearInterval(screenCheckInterval.current)
+        screenCheckInterval.current = null
+      }
+      return
+    }
+
+    // Función para verificar pantallas periódicamente
+    const checkScreens = async () => {
+      // Solo verificar si no hay ventana conectada
+      if (status === "connected" || status === "connecting") {
+        console.log("🔵 Pantalla ya conectada, saltando verificación...")
+        return
+      }
+
+      console.log("🔍 Verificando pantallas externas...")
+      const extScreen = await getExternalScreen()
+      
+      if (extScreen) {
+        console.log("✅ Pantalla externa detectada:", {
+          width: extScreen.width,
+          height: extScreen.height,
+          isPrimary: (extScreen as any).isPrimary
+        })
+        
+        // Si encontramos una pantalla externa y no hay ventana abierta, abrir automáticamente
+        if (status === "disconnected" && !openedRef.current) {
+          console.log("🚀 Abriendo ventana automáticamente...")
+          openWindow()
+        }
+      } else {
+        console.log("❌ No se detectó pantalla externa")
+      }
+    }
+
+    // Verificar inmediatamente
+    checkScreens()
+
+    // Configurar verificación periódica cada 2 segundos (más frecuente)
+    screenCheckInterval.current = setInterval(checkScreens, 2000)
+
+    return () => {
+      if (screenCheckInterval.current) {
+        clearInterval(screenCheckInterval.current)
+        screenCheckInterval.current = null
+      }
+    }
+  }, [autoOpen, doorOpen, status, getExternalScreen, openWindow])
 
   /* ---------------- sync ---------------- */
   useEffect(() => {
@@ -355,18 +536,69 @@ export default function SimpleExternalWindowManager({
             {/* Acciones */}
             <div className="flex gap-2">
               {status === "disconnected" ? (
-                <Button className="flex-1" onClick={openWindow}>
-                  <ExternalLink className="h-4 w-4 mr-1" />
-                  Abrir
-                </Button>
+                <>
+                  <Button className="flex-1" onClick={openWindow}>
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Abrir
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      console.log("🔄 Forzando detección de pantallas...")
+                      const extScreen = await getExternalScreen()
+                      if (extScreen) {
+                        toast({
+                          title: "Pantalla detectada",
+                          description: "Pantalla externa encontrada, abriendo ventana...",
+                        })
+                        openWindow()
+                      } else {
+                        toast({
+                          title: "No se detectó pantalla",
+                          description: "Conecta una pantalla externa y vuelve a intentar",
+                          variant: "destructive",
+                        })
+                      }
+                    }}
+                    title="Forzar detección de pantallas"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </>
               ) : (
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={closeWindow}
-                >
-                  <X className="h-4 w-4 mr-1" /> Cerrar
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={closeWindow}
+                  >
+                    <X className="h-4 w-4 mr-1" /> Cerrar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      if (external?.windowRef) {
+                        try {
+                          await external.windowRef.document?.documentElement?.requestFullscreen?.()
+                          toast({
+                            title: "Pantalla completa",
+                            description: "Activada manualmente",
+                          })
+                        } catch (e) {
+                          toast({
+                            title: "Error",
+                            description: "No se pudo activar pantalla completa",
+                            variant: "destructive",
+                          })
+                        }
+                      }
+                    }}
+                  >
+                    <Video className="h-4 w-4" />
+                  </Button>
+                </>
               )}
             </div>
           </motion.div>

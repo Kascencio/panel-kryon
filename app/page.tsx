@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { Toaster } from "@/components/ui/toaster"
+import { Button } from "@/components/ui/button"
+import { RotateCcw, Minimize2, Monitor } from "lucide-react"
 
 import ArduinoServiceProvider, {
   useArduinoService,
@@ -44,8 +46,9 @@ function CabinaApp() {
   const [therapy, setTherapy] = useState<Therapy | null>(null)
   const [duration, setDuration] =
     useState<"corto" | "mediano" | "largo">("corto")
-  const [light, setLight] = useState(80)
+  const [light, setLight] = useState(50)
   const [needsPerms, setNeedsPerms] = useState(true)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   /* --------------- SERVICES --------------- */
   const { isPreloading, preloadProgress, preloadAudio } = useAudioCache()
@@ -84,6 +87,34 @@ function CabinaApp() {
 
     return () => clearInterval(id)
   }, [isPreloading, arduinoReady, bootStarted])
+
+  /* Detectar cambios de pantalla completa */
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const fullscreenElement = 
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+
+      setIsFullscreen(!!fullscreenElement)
+    }
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange)
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange)
+    document.addEventListener("mozfullscreenchange", handleFullscreenChange)
+    document.addEventListener("MSFullscreenChange", handleFullscreenChange)
+
+    // Verificar estado inicial
+    handleFullscreenChange()
+
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange)
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange)
+      document.removeEventListener("mozfullscreenchange", handleFullscreenChange)
+      document.removeEventListener("MSFullscreenChange", handleFullscreenChange)
+    }
+  }, [])
 
   /* --------------- HANDLERS --------------- */
   const handleStartTherapy = (
@@ -149,6 +180,53 @@ function CabinaApp() {
 
         <Toaster />
       </main>
+
+      {/* Barra de herramientas flotante */}
+      <div className="fixed top-4 right-4 z-40 flex flex-col gap-2">
+        {/* Botón de reiniciar sistema */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            if (confirm("¿Reiniciar la aplicación? Se perderá el progreso actual.")) {
+              window.location.reload()
+            }
+          }}
+          className="bg-gray-800/80 backdrop-blur border-gray-600 text-white hover:bg-gray-700/80 shadow-lg"
+          title="Reiniciar aplicación"
+        >
+          <RotateCcw className="h-4 w-4 mr-2" />
+          Reiniciar
+        </Button>
+
+        {/* Botón de salir de pantalla completa (solo si está en pantalla completa) */}
+        {isFullscreen && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              try {
+                if (document.exitFullscreen) {
+                  await document.exitFullscreen()
+                } else if ((document as any).webkitExitFullscreen) {
+                  await (document as any).webkitExitFullscreen()
+                } else if ((document as any).mozCancelFullScreen) {
+                  await (document as any).mozCancelFullScreen()
+                } else if ((document as any).msExitFullscreen) {
+                  await (document as any).msExitFullscreen()
+                }
+              } catch (err) {
+                console.warn("Error saliendo de pantalla completa:", err)
+              }
+            }}
+            className="bg-orange-800/80 backdrop-blur border-orange-600 text-white hover:bg-orange-700/80 shadow-lg"
+            title="Salir de pantalla completa"
+          >
+            <Minimize2 className="h-4 w-4 mr-2" />
+            Salir Fullscreen
+          </Button>
+        )}
+      </div>
 
       {/* Ventana externa / pantalla extendida */}
       <SimpleExternalWindowManager

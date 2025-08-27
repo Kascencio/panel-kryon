@@ -39,11 +39,10 @@ export const useArduinoService = (): Ctx => {
 
 /* ───────── Constantes ───────── */
 const ESP32_USB_FILTERS: SerialPortFilter[] = [
-  { usbVendorId: 0x10c4, usbProductId: 0xea60 },
-  { usbVendorId: 0x0403, usbProductId: 0x6015 },
-  { usbVendorId: 0x1a86, usbProductId: 0x7523 },
+  { usbVendorId: 0x10C4, usbProductId: 0xEA60 }, // ESP32 CP210x
+  { usbVendorId: 0x1A86, usbProductId: 0x7523 }, // ESP32 CH340
 ]
-const BAUD_RATE = 115200
+const BAUD_RATE = 115200 // ESP32 usa 115200 por defecto
 
 const safeLocalStorage = {
   getItem: (key: string) => typeof window !== "undefined" ? localStorage.getItem(key) : null,
@@ -110,7 +109,7 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
             const { value, done } = await reader.read()
             if (done) break
             const text = new TextDecoder().decode(value).trim()
-            console.log("🟢 ESP32 >", text)
+            console.log("🟢 Sistema Cuántico >", text)
             if (/error/i.test(text)) {
               toast({ title: "Sistema Error", description: text, variant: "destructive" })
             }
@@ -129,15 +128,15 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
       return true
     } catch (err: any) {
       if (err?.name === "InvalidStateError") {
-        console.warn("Puerto ya abierto, estableciendo refs…")
-        portRef.current = port
-        readerRef.current = port.readable!.getReader()
-        writerRef.current = port.writable!.getWriter()
-        setConnectionStatus("connected")
-        toast({ title: "Sistema Cuántico conectado", description: "Puerto ya estaba abierto" })
-        return true
+              console.warn("Puerto ya abierto, estableciendo refs…")
+      portRef.current = port
+      readerRef.current = port.readable!.getReader()
+      writerRef.current = port.writable!.getWriter()
+      setConnectionStatus("connected")
+      toast({ title: "Sistema Cuántico conectado", description: "Puerto ya estaba abierto" })
+      return true
       }
-      console.error("Error opening ESP32 port:", err)
+      console.error("Error opening Sistema Cuántico port:", err)
       setConnectionStatus("error")
       return false
     }
@@ -241,7 +240,7 @@ export default function ArduinoServiceProvider({ children }: { children: ReactNo
     writerRef.current = null
     portRef.current = null
     setConnectionStatus("disconnected")
-    toast({ title: "Sistema Cuántico desconectado" })
+          toast({ title: "Sistema Cuántico desconectado" })
   }, [toast])
 
   useEffect(() => () => { desconectar() }, [desconectar])

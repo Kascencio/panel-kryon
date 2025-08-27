@@ -47,7 +47,7 @@ export function useSessionBridge(windowId: string | null): SessionBridge {
     sessionType: "standby",
     therapyColor: "#0891b2",
     sessionDuration: 4,
-    lightIntensity: 80,
+    lightIntensity: 50,
     selectedTherapy: null,
     timestamp: Date.now(),
   }))
@@ -89,7 +89,7 @@ export function useSessionBridge(windowId: string | null): SessionBridge {
               sessionType: data.sessionType ?? "standby",
               therapyColor: data.therapyColor ?? "#0891b2",
               sessionDuration: data.sessionDuration ?? 4,
-              lightIntensity: data.lightIntensity ?? 80,
+              lightIntensity: data.lightIntensity ?? 50,
               selectedTherapy: data.selectedTherapy ?? null,
               timestamp: Date.now(),
             })
@@ -143,7 +143,7 @@ export function useSessionBridge(windowId: string | null): SessionBridge {
         sessionType: d.sessionType ?? "standby",
         therapyColor: d.therapyColor ?? "#0891b2",
         sessionDuration: d.sessionDuration ?? 4,
-        lightIntensity: d.lightIntensity ?? 80,
+                      lightIntensity: d.lightIntensity ?? 50,
         selectedTherapy: d.selectedTherapy ?? null,
         timestamp: d.timestamp ?? Date.now(),
       })

@@ -19,26 +19,12 @@ import { Slider } from "@/components/ui/slider"
 import { Progress } from "@/components/ui/progress"
 
 import AudioPlayer from "@/components/audio-player"
-import VideoPlayer from "@/components/video-player"
-import ParticleEffects from "@/components/particle-effects"
-import FrequencyWaves from "@/components/frequency-waves"
 
 import { useMicrophone } from "@/hooks/useMicrophone"
 import { useArduinoService } from "@/components/arduino-service"
+import type { Therapy } from "@/components/session-therapies"
 
 /* ────────── tipos ────────── */
-export interface Therapy {
-  id: string
-  name: string
-  description: string
-  frequency: string
-  color: string
-  icon: string
-  category: string
-  hasVideo?: boolean
-  lightMode?: string
-  initialIntensity?: number
-}
 
 interface Props {
   therapy: Therapy
@@ -73,7 +59,7 @@ export default function SessionControlScreen({
 
   /* -------- servicios externos -------- */
   const [micOn, setMicOn] = useState(false)
-  useMicrophone(micOn)
+  const { ready: micReady, audioLevel, isPlaying, micVolume, changeMicVolume } = useMicrophone(micOn)
 
   const {
     conectarArduino,
@@ -201,29 +187,18 @@ export default function SessionControlScreen({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Panel visual principal */}
           <div className="lg:col-span-2 space-y-6">
-            {therapy.hasVideo ? (
-              <VideoPlayer
-                sessionActive={active && !paused}
-                sessionDuration={duration}
-                selectedTherapy={therapy}
-                onVideoComplete={handleStop}
-                onVideoDurationChange={(d) => d && setTotal(Math.floor(d))}
-              />
-            ) : (
-              <Card className="bg-gray-800 border-gray-700 h-96">
-                <CardContent className="p-0 h-full relative overflow-hidden rounded-lg">
-                  <ParticleEffects
-                    isActive={active}
-                    color={therapy.color}
-                    intensity={lightIntensity}
-                    pattern={therapy.lightMode ?? therapy.frequency}
-                  />
-                  <FrequencyWaves
-                    isActive={active}
-                    frequency={therapy.lightMode ?? therapy.frequency}
-                    color={therapy.color}
-                    intensity={lightIntensity}
-                  />
+            <Card className="bg-gray-800 border-gray-700 h-96">
+              <CardContent className="p-0 h-full relative overflow-hidden rounded-lg">
+                {/* Panel visual simplificado */}
+                <div 
+                  className="w-full h-full flex items-center justify-center transition-all duration-1000"
+                  style={{
+                    background: active 
+                      ? `radial-gradient(circle, ${therapy.color}40, ${therapy.color}10, transparent)`
+                      : 'linear-gradient(135deg, #1f2937, #374151)',
+                    opacity: active ? (lightIntensity / 100) : 0.3
+                  }}
+                >
                   {/* Overlay con información */}
                   <div className="absolute inset-0 bg-black/35 flex flex-col items-center justify-center text-white text-center">
                     <div
@@ -241,9 +216,9 @@ export default function SessionControlScreen({
                       de {fmt(total)}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            )}
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Barra de progreso */}
             <Card className="bg-gray-800 border-gray-700">
@@ -329,25 +304,71 @@ export default function SessionControlScreen({
                 </div>
 
                 {/* Micrófono */}
-                <Button
-                  variant="outline"
-                  className={
-                    micOn
-                      ? "w-full bg-green-900/30 border-green-600 text-green-400 hover:bg-green-900/40"
-                      : "w-full bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600"
-                  }
-                  onClick={() => setMicOn((v) => !v)}
-                >
-                  {micOn ? (
-                    <>
-                      <Mic className="h-4 w-4 mr-2" /> Apagar Mic.
-                    </>
-                  ) : (
-                    <>
-                      <MicOff className="h-4 w-4 mr-2" /> Encender Mic.
-                    </>
+                <div className="space-y-2">
+                  <Button
+                    variant="outline"
+                    className={
+                      micOn
+                        ? "w-full bg-green-900/30 border-green-600 text-green-400 hover:bg-green-900/40"
+                        : "w-full bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600"
+                    }
+                    onClick={() => setMicOn((v) => !v)}
+                  >
+                    {micOn ? (
+                      <>
+                        <Mic className="h-4 w-4 mr-2" /> Apagar Mic.
+                      </>
+                    ) : (
+                      <>
+                        <MicOff className="h-4 w-4 mr-2" /> Encender Mic.
+                      </>
+                    )}
+                  </Button>
+                  
+                  {/* Indicador de nivel de audio */}
+                  {micOn && micReady && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-gray-700 rounded-full h-2 overflow-hidden">
+                          <div 
+                            className="h-full bg-green-400 transition-all duration-100 ease-out"
+                            style={{ width: `${audioLevel}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-400 min-w-[30px] text-right">
+                          {Math.round(audioLevel)}%
+                        </span>
+                      </div>
+                      
+                      {/* Estado de reproducción del micrófono */}
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-400">Micrófono:</span>
+                        <span className={`font-medium ${isPlaying ? 'text-green-400' : 'text-yellow-400'}`}>
+                          {isPlaying ? '🔊 Reproduciendo' : '⏸️ Pausado'}
+                        </span>
+                      </div>
+                      
+                      {/* Control de volumen del micrófono */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-400">Volumen Mic:</span>
+                          <span className="text-white">{Math.round(micVolume * 100)}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={micVolume * 100}
+                          onChange={(e) => changeMicVolume(parseInt(e.target.value) / 100)}
+                          className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                          style={{
+                            background: `linear-gradient(to right, #10b981 0%, #10b981 ${micVolume * 100}%, #374151 ${micVolume * 100}%, #374151 100%)`
+                          }}
+                        />
+                      </div>
+                    </div>
                   )}
-                </Button>
+                </div>
 
                 {/* Reproductor de audio cuando no hay vídeo */}
                 {!therapy.hasVideo && (

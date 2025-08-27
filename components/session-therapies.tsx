@@ -149,7 +149,7 @@ export const sessionTherapies: Therapy[] = [
     hasVideo: true,
     customizable: true,
     lightMode: "general",
-    initialIntensity: 80,
+    initialIntensity: 50,
     sessionDuration: "corto",
   },
 ]
@@ -174,13 +174,13 @@ export default function SessionTherapies({
 }: Props) {
   const [dlg, setDlg] = useState<{ open: boolean; therapy: Therapy | null }>({ open: false, therapy: null })
   const [modeId, setModeId]       = useState<string>("general")
-  const [intensity, setIntensity] = useState<number>(80)
+  const [intensity, setIntensity] = useState<number>(50)
   const [dur, setDur]             = useState<"corto" | "mediano" | "largo">("corto")
 
   const openDlg = (t: Therapy) => {
     setDlg({ open: true, therapy: t })
     setModeId(t.lightMode ?? "general")
-    setIntensity(t.initialIntensity ?? 80)
+    setIntensity(t.initialIntensity ?? 50)
     setDur(t.sessionDuration ?? "corto")
   }
 
@@ -212,7 +212,7 @@ export default function SessionTherapies({
         const C = mergeWithSelected(t)
         const selected = selectedTherapy?.id === C.id
         const quickDur = C.sessionDuration ?? "corto"
-        const quickIntensity = C.initialIntensity ?? 80
+        const quickIntensity = C.initialIntensity ?? 50
         return (
           <Card
             key={C.id}

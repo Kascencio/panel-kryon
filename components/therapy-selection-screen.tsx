@@ -1,10 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
 import SessionTherapies, { sessionTherapies, type Therapy } from "@/components/session-therapies"
-import ColorTherapies from "@/components/color-therapies"
-import MoreTherapies  from "@/components/more-therapies"
 
 interface Props {
   onStartTherapy: (t: Therapy, d: "corto" | "mediano" | "largo") => void
@@ -42,39 +40,13 @@ export default function TherapySelectionScreen({ onStartTherapy }: Props) {
         </div>
       </header>
 
-      {/* tabs */}
-      <div className="max-w-7xl mx-auto">
-        <Tabs defaultValue="session">
-          <TabsList className="grid grid-cols-3 bg-gray-800 border-gray-700">
-            <TabsTrigger value="session">Sesión</TabsTrigger>
-            <TabsTrigger value="color">Color</TabsTrigger>
-            <TabsTrigger value="more">Más</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="session" className="mt-6">
-            <SessionTherapies
-              selectedTherapy={selectedTherapy}
-              onTherapySelect={handleTherapySelect}
-              onStartTherapy={handleStart}
-            />
-          </TabsContent>
-
-          <TabsContent value="color" className="mt-6">
-            <ColorTherapies
-              selectedTherapy={selectedTherapy}
-              onTherapySelect={handleTherapySelect}
-              onStartTherapy={handleStart}
-            />
-          </TabsContent>
-
-          <TabsContent value="more" className="mt-6">
-            <MoreTherapies
-              selectedTherapy={selectedTherapy}
-              onTherapySelect={handleTherapySelect}
-              onStartTherapy={handleStart}
-            />
-          </TabsContent>
-        </Tabs>
+      {/* Terapias disponibles */}
+      <div className="max-w-7xl mx-auto mt-6">
+        <SessionTherapies
+          selectedTherapy={selectedTherapy}
+          onTherapySelect={handleTherapySelect}
+          onStartTherapy={handleStart}
+        />
       </div>
     </div>
   )

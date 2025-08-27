@@ -1,148 +1,102 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+"use client"
 
-/* --------------------------------------------------
- * Tipos
- * -------------------------------------------------*/
+import { useState, useEffect, useCallback } from "react"
+
+/* ---------- tipos ---------- */
 export interface ScreenInfo {
   id: string
-  name: string
   width: number
   height: number
-  left: number
-  top: number
   isPrimary: boolean
-  availWidth: number
-  availHeight: number
+  isInternal: boolean
+  label?: string
 }
 
 export type DetectionStatus = "idle" | "detecting" | "success" | "error"
 
-/* --------------------------------------------------
- * Hook principal
- * -------------------------------------------------*/
+/* ---------- hook principal ---------- */
 export function useScreenDetector() {
-  /** Última lista de pantallas detectadas */
   const [screens, setScreens] = useState<ScreenInfo[]>([])
-  /** ¿Tiene el permiso `window-management`? */
-  const [permissionGranted, setPermissionGranted] = useState(false)
-  /** Estado del último intento de detección */
   const [status, setStatus] = useState<DetectionStatus>("idle")
+  const [permissionGranted, setPermissionGranted] = useState(false)
 
-  /** ---------- Detectar pantallas ---------------*/
-  const detectScreens = useCallback(async (): Promise<ScreenInfo[]> => {
+  /* detectar pantallas disponibles */
+  const detectScreens = useCallback(async () => {
     setStatus("detecting")
-
+    
     try {
-      // 1) Screen Management API (Chrome ≥ 111 con flag / Edge Canary…)
-      if ("getScreenDetails" in window) {
-        // @ts-ignore – todavía experimental
-        const screenDetails: any = await (window as any).getScreenDetails()
-
-        const mapped: ScreenInfo[] = screenDetails.screens.map((scr: any, idx: number) => ({
-          id: `screen-${idx}`,
-          name: scr.label || `Pantalla ${idx + 1}`,
-          width: scr.width,
-          height: scr.height,
-          left: scr.left,
-          top: scr.top,
-          isPrimary: scr.isPrimary,
-          availWidth: scr.availWidth,
-          availHeight: scr.availHeight,
-        }))
-
-        setScreens(mapped)
-        setPermissionGranted(true)
-        setStatus("success")
-        return mapped
+      // Verificar si la API de pantallas está disponible
+      if (!("getScreenDetails" in window)) {
+        console.warn("API getScreenDetails no disponible")
+        setStatus("error")
+        return
       }
 
-      // 2) Fallback heurístico (si no hay API nativa)
-      const fallback = await fallbackDetect()
-      setScreens(fallback)
-      setStatus(fallback.length > 1 ? "success" : "error")
-      return fallback
-    } catch (err) {
-      console.warn("useScreenDetector: error detectando pantallas", err)
-      setStatus("error")
-      return []
-    }
-  }, [])
-
-  /** ---------- Fallback simple ---------------*/
-  const fallbackDetect = useCallback(async (): Promise<ScreenInfo[]> => {
-    const primary: ScreenInfo = {
-      id: "primary",
-      name: "Pantalla Principal",
-      width: window.screen.width,
-      height: window.screen.height,
-      left: 0,
-      top: 0,
-      isPrimary: true,
-      availWidth: window.screen.availWidth,
-      availHeight: window.screen.availHeight,
-    }
-
-    const list: ScreenInfo[] = [primary]
-
-    // Intentar abrir una ventanita fantasma para detectar segundo monitor
-    try {
-      const test = window.open("", "_blank", "width=100,height=100,left=9999,top=9999")
-      if (test) {
-        await new Promise((res) => setTimeout(res, 120))
-        const actualLeft = test.screenLeft ?? test.screenX ?? 0
-        const actualTop = test.screenTop ?? test.screenY ?? 0
-        test.close()
-
-        if (actualLeft !== 9999 || actualTop !== 9999) {
-          list.push({
-            id: "secondary",
-            name: "Pantalla Secundaria (heurística)",
-            width: window.screen.width,
-            height: window.screen.height,
-            left: actualLeft,
-            top: actualTop,
-            isPrimary: false,
-            availWidth: window.screen.availWidth,
-            availHeight: window.screen.availHeight,
-          })
-        }
-      }
-    } catch (err) {
-      /* mute */
-    }
-
-    return list
-  }, [])
-
-  /** ---------- Solicitar permiso explícito ---------------*/
-  const requestPermission = useCallback(async () => {
-    if ("permissions" in navigator) {
-      try {
-        // @ts-ignore – prop experimental
-        const permStatus = await navigator.permissions.query({ name: "window-management" as any })
-        if (permStatus.state === "granted") {
+      // Solicitar permisos si es necesario
+      if (typeof window.getScreenDetails === "function") {
+        try {
+          const screenDetails = await window.getScreenDetails()
           setPermissionGranted(true)
+          
+          const screenList: ScreenInfo[] = screenDetails.screens.map((screen, index) => ({
+            id: screen.id || `screen-${index}`,
+            width: screen.width,
+            height: screen.height,
+            isPrimary: screen.isPrimary || false,
+            isInternal: screen.isInternal || false,
+            label: screen.label || `Pantalla ${index + 1}`
+          }))
+          
+          setScreens(screenList)
+          setStatus("success")
+        } catch (error) {
+          console.error("Error al obtener detalles de pantalla:", error)
+          setPermissionGranted(false)
+          setStatus("error")
         }
-        // No hacemos nada si es denied; detectScreens() hará fallback
-      } catch (err) {
-        console.warn("useScreenDetector: no se pudo consultar permisos", err)
+      } else {
+        // Fallback para navegadores que no soportan getScreenDetails
+        const fallbackScreens: ScreenInfo[] = [{
+          id: "primary",
+          width: window.screen.width,
+          height: window.screen.height,
+          isPrimary: true,
+          isInternal: true,
+          label: "Pantalla Principal"
+        }]
+        
+        setScreens(fallbackScreens)
+        setStatus("success")
       }
+    } catch (error) {
+      console.error("Error en detección de pantallas:", error)
+      setStatus("error")
     }
-    // Siempre intentamos detectar
-    await detectScreens()
+  }, [])
+
+  /* detectar al montar */
+  useEffect(() => {
+    detectScreens()
   }, [detectScreens])
 
-  /** ---------- Auto‑detección al montar ---------------*/
+  /* escuchar cambios de pantalla */
   useEffect(() => {
-    requestPermission()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    if (typeof window !== "undefined") {
+      const handleResize = () => {
+        if (screens.length > 0) {
+          detectScreens()
+        }
+      }
+      
+      window.addEventListener("resize", handleResize)
+      return () => window.removeEventListener("resize", handleResize)
+    }
+  }, [screens.length, detectScreens])
 
   return {
     screens,
     status,
     permissionGranted,
-    detectScreens,
-    requestPermission,
+    detectScreens
   }
 }

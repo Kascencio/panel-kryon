@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import Head from "next/head"
-import { Wifi, WifiOff } from "lucide-react"
+import { Wifi, WifiOff, Minimize2 } from "lucide-react"
 
 import { useSessionBridge } from "@/hooks/useSessionBridge"
 
@@ -31,6 +31,63 @@ export default function ExternalScreen() {
   const [current, setCurrent]  = useState(0)
   const [duration, setDuration]= useState(0)
   const [error, setError]      = useState<string | null>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  /* función para salir de pantalla completa ----------------------- */
+  const exitFullscreen = async () => {
+    try {
+      // Método 1: exitFullscreen estándar
+      if (document.exitFullscreen) {
+        await document.exitFullscreen()
+        return
+      }
+      // Método 2: webkitExitFullscreen (Safari)
+      if ((document as any).webkitExitFullscreen) {
+        await (document as any).webkitExitFullscreen()
+        return
+      }
+      // Método 3: mozCancelFullScreen (Firefox)
+      if ((document as any).mozCancelFullScreen) {
+        await (document as any).mozCancelFullScreen()
+        return
+      }
+      // Método 4: msExitFullscreen (IE/Edge)
+      if ((document as any).msExitFullscreen) {
+        await (document as any).msExitFullscreen()
+        return
+      }
+    } catch (e) {
+      console.error("Error saliendo de pantalla completa:", e)
+    }
+  }
+
+  /* detectar cambios de pantalla completa -------------------------- */
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const fullscreenElement = 
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+
+      setIsFullscreen(!!fullscreenElement)
+    }
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange)
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange)
+    document.addEventListener("mozfullscreenchange", handleFullscreenChange)
+    document.addEventListener("MSFullscreenChange", handleFullscreenChange)
+
+    // Verificar estado inicial
+    handleFullscreenChange()
+
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange)
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange)
+      document.removeEventListener("mozfullscreenchange", handleFullscreenChange)
+      document.removeEventListener("MSFullscreenChange", handleFullscreenChange)
+    }
+  }, [])
 
   /* carga de vídeo -------------------------------------------------- */
   useEffect(() => {
@@ -109,19 +166,35 @@ export default function ExternalScreen() {
         )}
 
         {/* Barra superior */}
-        <div className="absolute top-0 left-0 w-full flex justify-between p-4 text-white text-sm bg-black/30 backdrop-blur-md">
+        <div className="absolute top-0 left-0 w-full flex justify-between items-center p-4 text-white text-sm bg-black/30 backdrop-blur-md">
           <span>{decodeURIComponent(windowName)}</span>
-          <span className="flex items-center gap-1">
-            {connected ? (
-              <>
-                <Wifi className="h-4 w-4 text-green-400" /> Conectado
-              </>
-            ) : (
-              <>
-                <WifiOff className="h-4 w-4 text-red-400" /> Desconectado
-              </>
+          
+          <div className="flex items-center gap-4">
+            {/* Estado de conexión */}
+            <span className="flex items-center gap-1">
+              {connected ? (
+                <>
+                  <Wifi className="h-4 w-4 text-green-400" /> Conectado
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-4 w-4 text-red-400" /> Desconectado
+                </>
+              )}
+            </span>
+
+            {/* Botón salir de pantalla completa */}
+            {isFullscreen && (
+              <button
+                onClick={exitFullscreen}
+                className="flex items-center gap-1 px-2 py-1 rounded bg-white/10 hover:bg-white/20 transition-colors text-xs"
+                title="Salir de pantalla completa"
+              >
+                <Minimize2 className="h-3 w-3" />
+                Salir
+              </button>
             )}
-          </span>
+          </div>
         </div>
 
         {/* Mensaje central cuando no hay vídeo */}

@@ -13,6 +13,7 @@ import {
   Settings2,
   Video,
   Music,
+  RotateCcw,
 } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,13 +25,8 @@ import { Slider } from "@/components/ui/slider"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 import AudioPlayer from "@/components/audio-player"
-import VideoPlayer from "@/components/video-player"
-import ArduinoCommandMonitor from "@/components/arduino-command-monitor"
-import AudioDurationWarning from "@/components/audio-duration-warning"
 
 import { sessionTherapies } from "@/components/session-therapies"
-import colorTherapies from "@/components/color-therapies"
-import { therapies } from "@/components/more-therapies"
 
 import { useArduinoService } from "@/components/arduino-service"
 import { useToast } from "@/hooks/use-toast"
@@ -40,8 +36,6 @@ import type { Therapy } from "@/components/session-therapies"
 /* ────────── helpers ────────── */
 const allTherapies = [
   ...sessionTherapies,
-  ...(Array.isArray(colorTherapies) ? colorTherapies : [colorTherapies]),
-  ...therapies,
 ]
 
 const availableModes = [
@@ -109,12 +103,12 @@ export default function ControlPanel({
   const [isSendingIntensity, setIsSendingIntensity] = useState(false)
   const [showTestControls, setShowTestControls] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
+  const [isReloading, setIsReloading] = useState(false)
 
   /* ────────── helpers ────────── */
   const getEffectiveMode = useCallback(() => {
     if (selectedMode) return selectedMode
     if (!selectedTherapy) return "patron"
-    if (selectedTherapy.customMode) return selectedTherapy.customMode
     return selectedTherapy.frequency
   }, [selectedMode, selectedTherapy])
 
@@ -219,6 +213,31 @@ export default function ControlPanel({
     }
   }, [sessionActive, connected, onLightIntensityChange, enviarComando])
 
+  /* ────────── recargar sistema ────────── */
+  const handleSystemReload = useCallback(async () => {
+    setIsReloading(true)
+    
+    toast({
+      title: "Actualizando sistema...",
+      description: "La aplicación se recargará en unos segundos",
+    })
+
+    // Si hay una sesión activa, detenerla primero
+    if (sessionActive && connected) {
+      try {
+        await detenerTerapia()
+      } catch (e) {
+        console.warn("Error deteniendo terapia antes de recargar:", e)
+      }
+    }
+
+    // Pequeño delay para mostrar el mensaje
+    setTimeout(() => {
+      // Recargar la página completamente
+      window.location.reload()
+    }, 1500)
+  }, [sessionActive, connected, detenerTerapia, toast])
+
   /* ────────── UI ────────── */
   return (
     <Card className="bg-gray-900 border-gray-800 text-white">
@@ -227,14 +246,30 @@ export default function ControlPanel({
           <div className="flex items-center">
             <Activity className="mr-2 h-4 w-4"/> Control de Sesión
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowTestControls(!showTestControls)}
-            className="h-6 px-2 text-xs"
-          >
-            <Settings2 className="h-3 w-3"/>
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSystemReload}
+              disabled={isReloading}
+              className="h-6 px-2 text-xs text-orange-400 hover:text-orange-300 hover:bg-orange-400/10"
+              title="Actualizar sistema"
+            >
+              {isReloading ? (
+                <RefreshCw className="h-3 w-3 animate-spin"/>
+              ) : (
+                <RotateCcw className="h-3 w-3"/>
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowTestControls(!showTestControls)}
+              className="h-6 px-2 text-xs"
+            >
+              <Settings2 className="h-3 w-3"/>
+            </Button>
+          </div>
         </CardTitle>
       </CardHeader>
 
@@ -354,32 +389,14 @@ export default function ControlPanel({
           </div>
         )}
 
-        {/* DURATION WARNING */}
-        <AudioDurationWarning
-          sessionDuration={sessionDuration}
-          audioDuration={audioDuration}
-          videoDuration={videoDuration}
-        />
-
         {/* PLAYER */}
-        {(mediaType === "audio" || !selectedTherapy?.hasVideo) ? (
-          <AudioPlayer
-            sessionActive={sessionActive}
-            sessionDuration={sessionDuration}
-            selectedTherapy={selectedTherapy}
-            onAudioComplete={handleMediaComplete}
-            onAudioDurationChange={onAudioDurationChange}
-          />
-        ) : (
-          <VideoPlayer
-            sessionActive={sessionActive}
-            sessionDuration={sessionDuration}
-            selectedTherapy={selectedTherapy}
-            onVideoComplete={handleMediaComplete}
-            onVideoDurationChange={setVideoDuration}
-            isExternalScreen={false}
-          />
-        )}
+        <AudioPlayer
+          sessionActive={sessionActive}
+          sessionDuration={sessionDuration}
+          selectedTherapy={selectedTherapy}
+          onAudioComplete={handleMediaComplete}
+          onAudioDurationChange={onAudioDurationChange}
+        />
       </CardContent>
     </Card>
   )
